@@ -1,0 +1,57 @@
+# Build directory - DO NOT COPY
+build/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CPackConfig.cmake
+CPackSourceConfig.cmake
+
+# Compiled objects
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Executables
+UnifiedConkyControlCenter
+*.exe
+
+# Qt generated files
+*_autogen/
+moc_*
+qrc_*
+ui_*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# User-specific config (don't overwrite user settings)
+~/.config/UnifiedConkyControlCenter/
+
+# Backup files
+*.bak
+*.backup
+
+# Development/Testing files (not for end users)
+TODO.md
+TESTING_GUIDE.md
+memory_bank/
+*.md
+!README.md
