@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  ubuntu-x11:
+    name: Ubuntu X11 Build + Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev qtwayland5-dev nlohmann-json3-dev conky-all xvfb
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run X11 smoke test
+        run: |
+          cd build
+          xvfb-run -a -s "-screen 0 1024x768x24" bash -c 'printf "8\n" | ./UnifiedConkyControlCenter'
+
+  ubuntu-wayland:
+    name: Ubuntu Wayland Build + Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev qtwayland5-dev nlohmann-json3-dev conky-all weston
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run Wayland smoke test
+        run: |
+          cd build
+          weston --backend=headless-backend.so --width 1024 --height 768 --socket wayland-0 &
+          WESTON_PID=$!
+          sleep 2
+          XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf "8\n" | ./UnifiedConkyControlCenter
+          kill $WESTON_PID || true
+
+  fedora-x11:
+    name: Fedora X11 Build + Smoke Test
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt5-qtbase-devel qt5-qttools-devel qt5-qtwayland-devel nlohmann-json-devel conky xorg-x11-server-Xvfb
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run X11 smoke test
+        run: |
+          cd build
+          xvfb-run -a -s "-screen 0 1024x768x24" bash -c 'printf "8\n" | ./UnifiedConkyControlCenter'
+
+  fedora-wayland:
+    name: Fedora Wayland Build + Smoke Test
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt5-qtbase-devel qt5-qttools-devel qt5-qtwayland-devel nlohmann-json-devel conky weston
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run Wayland smoke test
+        run: |
+          cd build
+          weston --backend=headless-backend.so --width 1024 --height 768 --socket wayland-0 &
+          WESTON_PID=$!
+          sleep 2
+          XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf "8\n" | ./UnifiedConkyControlCenter
+          kill $WESTON_PID || true
