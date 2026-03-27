@@ -142,7 +142,7 @@ private:
         
         if (panelNum >= 1 && panelNum <= panels.size()) {
             std::string panel = panels[panelNum - 1];
-            std::string configPath = utils->get_conky_config_path(panel);
+            std::string configPath = utils->get_conky_config_path(panel).string();
             
             int gapX = configParser->get_gap_x(configPath);
             int gapY = configParser->get_gap_y(configPath);
@@ -182,7 +182,7 @@ private:
         
         std::cout << "Panel status:" << std::endl;
         for (const auto& panel : panels) {
-            std::string configPath = utils->get_conky_config_path(panel);
+            std::string configPath = utils->get_conky_config_path(panel).string();
             bool isRunning = false;
             for (const auto& runningConfig : runningConfigs) {
                 if (runningConfig == configPath) {
@@ -253,7 +253,7 @@ private:
                 editor = "nano";
             }
             
-            std::string configPath = utils->get_conky_config_path(panel);
+            std::string configPath = utils->get_conky_config_path(panel).string();
             std::string command = editor + " " + configPath;
             
             int result = system(command.c_str());
