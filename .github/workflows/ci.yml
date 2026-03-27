@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev qtwayland5-dev nlohmann-json3-dev conky-all xvfb
+          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev nlohmann-json3-dev conky-all xvfb
       - name: Configure and build
         run: |
           mkdir -p build && cd build
@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev qtwayland5-dev nlohmann-json3-dev conky-all weston
+          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev nlohmann-json3-dev conky-all weston
       - name: Configure and build
         run: |
           mkdir -p build && cd build
@@ -48,6 +48,7 @@ jobs:
           WESTON_PID=$!
           sleep 2
           XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf "8\n" | ./UnifiedConkyControlCenter
+          kill $WESTON_PID || true
           kill $WESTON_PID || true
 
   fedora-x11:
