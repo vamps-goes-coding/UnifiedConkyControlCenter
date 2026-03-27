@@ -1027,7 +1027,7 @@ QWidget* UIManager::create_editor_tab(QWidget* parent) {
                 return;
             }
             
-            std::string config_path = Utils::get_conky_config_path(panel.toStdString());
+            std::string config_path = Utils::get_conky_config_path(panel.toStdString()).string();
             open_editor(editor.command, config_path);
         });
         
@@ -1076,7 +1076,7 @@ QWidget* UIManager::create_editor_tab(QWidget* parent) {
             return;
         }
         
-        std::string config_path = Utils::get_conky_config_path(panel.toStdString());
+        std::string config_path = Utils::get_conky_config_path(panel.toStdString()).string();
         
         InAppEditor editor;
         editor.openFile(QString::fromStdString(config_path));
@@ -1110,7 +1110,7 @@ QWidget* UIManager::create_editor_tab(QWidget* parent) {
             return;
         }
         
-        std::string config_path = Utils::get_conky_config_path(panel.toStdString());
+        std::string config_path = Utils::get_conky_config_path(panel.toStdString()).string();
         open_editor(editor_cmd.toStdString(), config_path);
     });
     
@@ -1134,7 +1134,7 @@ QWidget* UIManager::create_editor_tab(QWidget* parent) {
         // Connect panel selection to config path update
         QObject::connect(panel_combo, &QComboBox::currentTextChanged, [config_path_label](const QString& panel) {
             if (!panel.isEmpty()) {
-                std::string config_path = Utils::get_conky_config_path(panel.toStdString());
+                std::string config_path = Utils::get_conky_config_path(panel.toStdString()).string();
                 config_path_label->setText(QString::fromStdString("Config File: " + config_path));
             } else {
                 config_path_label->setText("Config File: (Select a panel)");
@@ -1143,7 +1143,7 @@ QWidget* UIManager::create_editor_tab(QWidget* parent) {
         
         // Trigger initial update
         if (panel_combo->count() > 0) {
-            std::string config_path = Utils::get_conky_config_path(panel_combo->currentText().toStdString());
+            std::string config_path = Utils::get_conky_config_path(panel_combo->currentText().toStdString()).string();
             config_path_label->setText(QString::fromStdString("Config File: " + config_path));
         }
     });
@@ -1376,7 +1376,7 @@ QWidget* UIManager::create_theme_tab(QWidget* parent) {
                         try {
                             abs_path = fs::absolute(Utils::get_conky_config_path(panel.toStdString())).string();
                         } catch (...) {
-                            abs_path = Utils::get_conky_config_path(panel.toStdString());
+                            abs_path = Utils::get_conky_config_path(panel.toStdString()).string();
                         }
                         
                         bool still_running = false;
@@ -1599,7 +1599,7 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     QObject::connect(panel_combo, &QComboBox::currentTextChanged, [gap_x_spin, gap_y_spin, path_label](const QString& panel) {
         if (!panel.isEmpty()) {
             load_gap_values(gap_x_spin, gap_y_spin, panel.toStdString());
-            std::string path = Utils::get_conky_config_path(panel.toStdString());
+            std::string path = Utils::get_conky_config_path(panel.toStdString()).string();
             path_label->setText(QString::fromStdString("Config Path: " + path));
         }
     });
@@ -1637,7 +1637,7 @@ void UIManager::refresh_panels(QComboBox* panel_combo) {
 void UIManager::load_gap_values(QSpinBox* gap_x_spin, QSpinBox* gap_y_spin, const std::string& panel_name) {
     if (!gap_x_spin || !gap_y_spin) return;
     
-    std::string path = Utils::get_conky_config_path(panel_name);
+    std::string path = Utils::get_conky_config_path(panel_name).string();
     int x = ConfigParser::get_gap_x(path);
     int y = ConfigParser::get_gap_y(path);
     
@@ -1646,7 +1646,7 @@ void UIManager::load_gap_values(QSpinBox* gap_x_spin, QSpinBox* gap_y_spin, cons
 }
 
 void UIManager::apply_gap_changes(const std::string& panel_name, int gap_x, int gap_y) {
-    std::string path = Utils::get_conky_config_path(panel_name);
+    std::string path = Utils::get_conky_config_path(panel_name).string();
 
     // 1. Save the new gap values to the config file first
     if (!ConfigParser::set_gap_values(path, gap_x, gap_y)) {
@@ -1669,7 +1669,7 @@ void UIManager::apply_gap_changes(const std::string& panel_name, int gap_x, int 
         try {
             abs_path = fs::absolute(Utils::get_conky_config_path(panel_name)).string();
         } catch (...) {
-            abs_path = Utils::get_conky_config_path(panel_name);
+            abs_path = Utils::get_conky_config_path(panel_name).string();
         }
 
         bool still_running = false;
