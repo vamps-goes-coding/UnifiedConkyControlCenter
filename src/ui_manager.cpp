@@ -6,6 +6,12 @@
 #include "theme_manager.h"
 #include "in_app_editor.h"
 #include <filesystem>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include <memory>
+#include <functional>
 namespace fs = std::filesystem;
 
 #include <QApplication>
