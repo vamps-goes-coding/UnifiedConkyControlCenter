@@ -28,8 +28,9 @@ moc_*
 qrc_*
 ui_*.h
 
-# Keep manual ui_*.cpp files in source tree
+# Keep manual ui_manager files in source tree
 !src/ui_manager.cpp
+!include/ui_manager.h
 
 # IDE files
 .vscode/
