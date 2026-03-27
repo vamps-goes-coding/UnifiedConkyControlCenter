@@ -7,6 +7,9 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <optional>
+#include <cstdio>
+#include <memory>
 #include <QProcess>
 #include <QTimer>
 #include <stdexcept>
