@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev nlohmann-json3-dev conky-all xvfb
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev conky-all xvfb
       - name: Configure and build
         run: |
           mkdir -p build && cd build
@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qtbase5-dev qttools5-dev nlohmann-json3-dev conky-all weston
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev qt6-wayland-dev nlohmann-json3-dev conky-all weston
       - name: Configure and build
         run: |
           mkdir -p build && cd build
@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: |
           dnf -y update
-          dnf -y install cmake gcc-c++ qt5-qtbase-devel qt5-qttools-devel qt5-qtwayland-devel nlohmann-json-devel conky xorg-x11-server-Xvfb
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel nlohmann-json-devel conky xorg-x11-server-Xvfb
       - name: Configure and build
         run: |
           mkdir -p build && cd build
@@ -80,7 +80,7 @@ jobs:
       - name: Install dependencies
         run: |
           dnf -y update
-          dnf -y install cmake gcc-c++ qt5-qtbase-devel qt5-qttools-devel qt5-qtwayland-devel nlohmann-json-devel conky weston
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel nlohmann-json-devel conky weston
       - name: Configure and build
         run: |
           mkdir -p build && cd build
