@@ -13,7 +13,7 @@ endif()
 # Standard Qt 6 Tooling 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON) # Added UIC for UI files
+set(CMAKE_AUTOUIC OFF) # Disabled UIC because app uses programmatic UI and not Qt .ui forms
 
 # 1. Flexible Qt 6 Find Package
 # Lowered to 6.4 to support major LTS distributions like Ubuntu 24.04 and Debian 12.
