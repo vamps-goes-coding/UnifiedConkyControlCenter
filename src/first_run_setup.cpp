@@ -129,6 +129,7 @@ void FirstRunSetup::setupUI() {
 void FirstRunSetup::loadDefaults() {
     // Try to find default Conky config path
     QString homePath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    QString configPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     
     // Detect display server and suggest appropriate path
     DisplayServerType detected = DisplayServer::get_type();
@@ -147,10 +148,11 @@ void FirstRunSetup::loadDefaults() {
     
     // Common locations for Conky configs
     QStringList possibleConfigPaths = {
+        homePath + "/.config/conky",
         suggestedPath,
         homePath + "/conky-confs/conky-wayland",
         homePath + "/conky-confs/conky-x11",
-        homePath + "/.config/conky",
+        configPath + "/conky",
         homePath + "/conky",
         homePath + "/.conky"
     };
@@ -236,17 +238,13 @@ QString FirstRunSetup::getDisplayServer() const {
 }
 
 bool FirstRunSetup::validatePaths() {
-    // Check if conky config path exists
-    if (!QDir(conkyConfigPath_).exists()) {
-        QMessageBox::warning(this, "Invalid Path",
-            "The Conky configuration folder does not exist:\n" + conkyConfigPath_);
+    if (conkyConfigPath_.isEmpty()) {
+        QMessageBox::warning(this, "Invalid Path", "Please select a Conky configuration folder.");
         return false;
     }
     
-    // Check if themes path exists
-    if (!QDir(themesPath_).exists()) {
-        QMessageBox::warning(this, "Invalid Path",
-            "The themes folder does not exist:\n" + themesPath_);
+    if (themesPath_.isEmpty()) {
+        QMessageBox::warning(this, "Invalid Path", "Please select a themes folder.");
         return false;
     }
     
@@ -255,10 +253,23 @@ bool FirstRunSetup::validatePaths() {
 
 void FirstRunSetup::accept() {
     if (validatePaths()) {
+        // Ensure directories exist before closing the dialog
+        try {
+            fs::create_directories(conkyConfigPath_.toStdString());
+            fs::create_directories(themesPath_.toStdString());
+            
+            if (shouldCreateSampleConfig()) {
+                LOG_INFO("Creating initial directory structure at " + conkyConfigPath_.toStdString());
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "IO Error", 
+                "Could not create directories: " + QString::fromStdString(e.what()));
+            return;
+        }
+
         // Save display server selection
         displayServer_ = displayServerCombo_->currentData().toString();
         LOG_INFO("Display server selected: " + displayServer_.toStdString());
-        
         QDialog::accept();
     }
 }

@@ -1,5 +1,7 @@
 # Build directory - DO NOT COPY
-build/
+build*/
+build_*-test/
+_deps/
 
 # CMake generated files
 CMakeCache.txt
@@ -44,7 +46,11 @@ ui_*.h
 Thumbs.db
 
 # Logs
+logs/
 *.log
+
+# Error reports
+Report-Error-Output/
 
 # User-specific config (don't overwrite user settings)
 ~/.config/UnifiedConkyControlCenter/
@@ -53,9 +59,12 @@ Thumbs.db
 *.bak
 *.backup
 
-# Development/Testing files (not for end users)
+# Development/Testing files and scripts (not for end users)
 TODO.md
 TESTING_GUIDE.md
+testing-guild.md
 memory_bank/
+run-tests.sh
+test-local.sh
 *.md
 !README.md

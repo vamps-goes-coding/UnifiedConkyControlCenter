@@ -48,10 +48,17 @@ All settings are now configurable through `config/app_config.json`. This allows 
 
 ### Prerequisites
 
-- CMake 3.16 or higher
-- Qt 5.15 or Qt 6.x
-- C++17 compatible compiler
+ - CMake 3.21 or higher
+ - Qt 6.4 or higher
+ - C++20 compatible compiler (GCC 10+, Clang 10+)
 - nlohmann_json library (automatically downloaded if not found)
+ - **Runtime:** Conky must be installed on your system.
+
+### Distro Dependencies
+
+- **Ubuntu/Debian:** `sudo apt install build-essential cmake qt6-base-dev libqt6widgets6`
+- **Fedora:** `sudo dnf install gcc-c++ cmake qt6-qtbase-devel`
+- **Arch Linux:** `sudo pacman -S base-devel cmake qt6-base`
 
 ### Building from Source
 

@@ -12,6 +12,7 @@
 #include <QTimer>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QTextStream>
 
 ErrorReportDialog::ErrorReportDialog(QWidget* parent)
     : QDialog(parent)
@@ -297,7 +298,7 @@ QString ErrorReportDialog::get_log_excerpts() {
 
 void ErrorReportDialog::open_github_issue() {
     // Default GitHub URL - can be configured in app_config.json
-    QString github_url = "https://github.com/yourusername/Unified-Conky-Control-Center/issues/new";
+    QString github_url = "https://github.com/beastvamps/Unified-Conky-Control-Center/issues/new";
     
     // Try to get from config if available
     try {

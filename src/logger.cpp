@@ -32,6 +32,10 @@ bool Logger::initialize(const fs::path& log_dir) {
     // Create log directory if it doesn't exist
     try {
         fs::create_directories(log_dir_);
+        if (!fs::exists(log_dir_)) {
+            std::cerr << "Logger: Path does not exist after creation attempt." << std::endl;
+            return false;
+        }
     } catch (const fs::filesystem_error& e) {
         std::cerr << "Failed to create log directory: " << e.what() << std::endl;
         return false;

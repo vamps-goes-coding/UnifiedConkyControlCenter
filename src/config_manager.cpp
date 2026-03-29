@@ -149,11 +149,11 @@ fs::path ConfigManager::get_themes_directory() const {
 fs::path ConfigManager::find_config_file() const {
     // Search order:
     // 1. Environment variable
-    // 2. Current directory
+    // 2. Current directory (./config/app_config.json)
     // 3. ~/.config/UnifiedConkyControlCenter/
     // 4. /etc/UnifiedConkyControlCenter/
-    // 5. Installation directory
-    
+    // 5. Installation directory (/usr/share/...)
+
     const char* env_config = std::getenv("CONKY_CONTROL_CENTER_CONFIG");
     if (env_config) {
         fs::path env_path(env_config);
@@ -161,12 +161,12 @@ fs::path ConfigManager::find_config_file() const {
             return env_path;
         }
     }
-    
+
     fs::path current_dir_config = fs::current_path() / "config" / "app_config.json";
     if (fs::exists(current_dir_config)) {
         return current_dir_config;
     }
-    
+
     const char* home = std::getenv("HOME");
     if (home) {
         fs::path home_config = fs::path(home) / ".config" / app_config_.internal_name / "app_config.json";
@@ -174,12 +174,19 @@ fs::path ConfigManager::find_config_file() const {
             return home_config;
         }
     }
-    
+
+    // 4. System-wide configuration override
     fs::path etc_config = fs::path("/etc") / app_config_.internal_name / "app_config.json";
     if (fs::exists(etc_config)) {
         return etc_config;
     }
-    
+
+    // 5. System-wide installation default (Set by CMake GNUInstallDirs)
+    fs::path share_config = fs::path("/usr/share") / app_config_.internal_name / "config" / "app_config.json";
+    if (fs::exists(share_config)) {
+        return share_config;
+    }
+
     return fs::path();
 }
 
@@ -213,11 +220,14 @@ void ConfigManager::set_themes_path(const std::string& path) {
 }
 
 bool ConfigManager::save_config() {
-    // Find the config file path
-    fs::path config_path = find_config_file();
-    
-    // If no config file exists, create one in the user's config directory
-    if (config_path.empty()) {
+    // For saving, we prioritize the user's home directory or the environment override.
+    // We should NOT attempt to write to /usr/share or /etc as they are usually read-only.
+    fs::path config_path;
+    const char* env_config = std::getenv("CONKY_CONTROL_CENTER_CONFIG");
+
+    if (env_config) {
+        config_path = fs::path(env_config);
+    } else {
         const char* home = std::getenv("HOME");
         if (home) {
             config_path = fs::path(home) / ".config" / app_config_.internal_name / "app_config.json";
@@ -226,7 +236,7 @@ bool ConfigManager::save_config() {
             return false;
         }
     }
-    
+
     try {
         // Create JSON object with current configuration
         json config;

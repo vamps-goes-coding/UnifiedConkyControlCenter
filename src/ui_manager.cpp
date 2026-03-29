@@ -969,7 +969,7 @@ QWidget* UIManager::create_editor_tab(QWidget* parent) {
     // Scan system: keep only editors actually installed
     std::vector<Editor> editors;
     for (const auto& candidate : candidates) {
-        bool found = system(("which " + candidate.command + " > /dev/null 2>&1").c_str()) == 0;
+        bool found = !QStandardPaths::findExecutable(QString::fromStdString(candidate.command)).isEmpty();
         if (found) {
             editors.push_back(candidate);
         }
@@ -1172,7 +1172,7 @@ void UIManager::refresh_editors(QGridLayout* editors_layout) {
     
     for (const auto& check : checks) {
         // Simple check if command exists
-        bool exists = system(("which " + check.command + " > /dev/null 2>&1").c_str()) == 0;
+        bool exists = !QStandardPaths::findExecutable(QString::fromStdString(check.command)).isEmpty();
         
         // Find button for this editor by searching through its child labels
         for (auto btn : buttons) {
@@ -1204,7 +1204,9 @@ void UIManager::open_editor(const std::string& command, const std::string& confi
     
     // Start the editor process
     QProcess* process = new QProcess();
-    QObject::connect(process, &QProcess::finished, process, &QProcess::deleteLater);
+    QObject::connect(process,
+        QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+        process, &QObject::deleteLater);
     QObject::connect(process, &QProcess::errorOccurred, [process, command](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
             QMessageBox::warning(nullptr, "Editor Not Found",
@@ -1214,7 +1216,10 @@ void UIManager::open_editor(const std::string& command, const std::string& confi
         process->deleteLater();
     });
     
-    process->startCommand(full_command);
+    // startCommand is Qt6 only — use start() with split args for Qt5 compatibility
+    QStringList args = QProcess::splitCommand(full_command);
+    QString program = args.takeFirst();
+    process->start(program, args);
     
     if (process->waitForStarted(3000)) {
         show_tray_message("Editor", "Opened " + command + " for editing");
@@ -1384,37 +1389,47 @@ QWidget* UIManager::create_theme_tab(QWidget* parent) {
                             try {
                                 if (fs::absolute(fs::path(r)).string() == abs_path) {
                                     still_running = true;
-                                break;
-                            }
-                        } catch (...) {}
-                    }
+                                    break;
+                                }
+                            } catch (...) {}
+                        }
                     
-                    if (!still_running) {
-                        // Panel is fully stopped, safe to restart
-                        ConkyManager::start_panel(panel.toStdString());
-                    } else {
-                        // Panel still running, try force kill and retry
-                        std::string kill_cmd = "pkill -9 -f \"conky -c.*" + Utils::get_conky_config_path(panel.toStdString()).filename().string() + "\"";
-                        system(kill_cmd.c_str());
+                        if (!still_running) {
+                            // Panel is fully stopped, safe to restart
+                            ConkyManager::start_panel(panel.toStdString());
+                        } else {
+                            // Panel still running, try force kill and retry
+                            std::string kill_cmd = "pkill -9 -f \"conky -c.*" + Utils::get_conky_config_path(panel.toStdString()).filename().string() + "\"";
+                            if (system(kill_cmd.c_str()) != 0) { /* handle error if necessary */ }
                         
-                        // Wait a bit more and try starting
-                        QTimer::singleShot(500, [panel]() {
-                            try {
-                                ConkyManager::start_panel(panel.toStdString());
-                            } catch (const std::exception& e) {
-                                QMessageBox::warning(nullptr, "Error Restarting Panel", 
-                                    QString("Failed to restart panel after theme change: %1").arg(e.what()));
-                            }
-                        });
+                            // Wait a bit more and try starting
+                            QTimer::singleShot(500, [panel]() {
+                                try {
+                                    ConkyManager::start_panel(panel.toStdString());
+                                } catch (const std::exception& e) {
+                                    QMessageBox::warning(nullptr, "Error Restarting Panel",
+                                        QString("Failed to restart panel after theme change: %1").arg(e.what()));
+                                }
+                            });
+                        }
+                    } catch (const std::exception& e) {
+                        QMessageBox::warning(nullptr, "Error Restarting Panel",
+                            QString("Failed to restart panel after theme change: %1").arg(e.what()));
                     }
-                } catch (const std::exception& e) {
-                    QMessageBox::warning(nullptr, "Error Restarting Panel", 
+                });
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::warning(nullptr, "Error Applying Theme",
+                QString("Failed to apply theme: %1").arg(e.what()));
+        }
+    });
+                    QMessageBox::warning(nullptr, "Error Restarting Panel",
                         QString("Failed to restart panel after theme change: %1").arg(e.what()));
                 }
             });
         }
     } catch (const std::exception& e) {
-        QMessageBox::warning(nullptr, "Error Applying Theme", 
+        QMessageBox::warning(nullptr, "Error Applying Theme",
             QString("Failed to apply theme: %1").arg(e.what()));
     }
 });
