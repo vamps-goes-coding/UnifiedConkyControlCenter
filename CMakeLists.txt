@@ -59,6 +59,14 @@ set(SOURCES
     src/display_server.cpp
     src/progress_dialog.cpp
     src/preferences_dialog.cpp
+
+    include/first_run_setup.h
+    include/conky_syntax_highlighter.h
+    include/in_app_editor.h
+    include/error_dialog.h
+    include/error_report_dialog.h
+    include/progress_dialog.h
+    include/preferences_dialog.h
 )
 
 # 4. Create Executable 
