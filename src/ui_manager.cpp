@@ -1423,16 +1423,6 @@ QWidget* UIManager::create_theme_tab(QWidget* parent) {
                 QString("Failed to apply theme: %1").arg(e.what()));
         }
     });
-                    QMessageBox::warning(nullptr, "Error Restarting Panel",
-                        QString("Failed to restart panel after theme change: %1").arg(e.what()));
-                }
-            });
-        }
-    } catch (const std::exception& e) {
-        QMessageBox::warning(nullptr, "Error Applying Theme",
-            QString("Failed to apply theme: %1").arg(e.what()));
-    }
-});
     
     QObject::connect(apply_global_btn, &QPushButton::clicked, [theme_list, cat_list]() {
         QString theme = theme_list->currentItem() ? theme_list->currentItem()->text() : "";
