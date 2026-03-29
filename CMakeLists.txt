@@ -61,12 +61,6 @@ set(SOURCES
     src/preferences_dialog.cpp
 )
 
-set(UI_FILES
-    src/error_dialog.ui
-    src/progress_dialog.ui
-    src/preferences_dialog.ui
-)
-
 # 4. Create Executable 
 add_executable(${PROJECT_NAME} ${SOURCES} ${UI_FILES} resources.qrc)
 
