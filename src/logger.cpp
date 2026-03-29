@@ -44,7 +44,8 @@ bool Logger::initialize(const fs::path& log_dir) {
     // Generate log file name with timestamp
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
-    std::tm tm = *std::localtime(&time_t);
+    std::tm tm;
+    localtime_r(&time_t, &tm);
     
     std::stringstream ss;
     ss << AppInfo::get_internal_name() << "_"
@@ -147,7 +148,8 @@ std::string Logger::get_timestamp() const {
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()) % 1000;
     
-    std::tm tm = *std::localtime(&time_t);
+    std::tm tm;
+    localtime_r(&time_t, &tm);
     
     std::stringstream ss;
     ss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S")

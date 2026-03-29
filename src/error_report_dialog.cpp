@@ -12,6 +12,17 @@
 #include <QTimer>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QGroupBox>
+#include <QCheckBox>
+#include <QPushButton>
+#include <QApplication>
+#include <QClipboard>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QTextStream>
 
 ErrorReportDialog::ErrorReportDialog(QWidget* parent)

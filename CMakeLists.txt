@@ -59,13 +59,16 @@ set(SOURCES
     src/display_server.cpp
     src/progress_dialog.cpp
     src/preferences_dialog.cpp
+)
+
+set(UI_FILES
     src/error_dialog.ui
     src/progress_dialog.ui
     src/preferences_dialog.ui
 )
 
 # 4. Create Executable 
-add_executable(${PROJECT_NAME} ${SOURCES} resources.qrc)
+add_executable(${PROJECT_NAME} ${SOURCES} ${UI_FILES} resources.qrc)
 
 # 5. Modern Include & Linkage (No more Qt5/Qt6 if-else blocks) 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
