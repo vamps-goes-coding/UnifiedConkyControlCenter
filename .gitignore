@@ -49,9 +49,6 @@ Thumbs.db
 logs/
 *.log
 
-# Error reports
-Report-Error-Output/
-
 # User-specific config (don't overwrite user settings)
 ~/.config/UnifiedConkyControlCenter/
 

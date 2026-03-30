@@ -98,7 +98,7 @@ jobs:
           # Extract version from tag (remove 'v' prefix)
           VERSION="${GITHUB_REF#refs/tags/v}"
           sed -i "s/pkgver=.*/pkgver=${VERSION}/" PKGBUILD
-          sed -i "s|source=.*|source=(\"https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v\${pkgver}/unified-conky-control-center-\${pkgver}-Linux-x86_64.tar.gz\")|" PKGBUILD
+          sed -i "s|source=.*|source=(\"https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v\${pkgver}/unified-conky-control-center-\${pkgver}-Linux.tar.gz\")|" PKGBUILD
 
       - name: Upload Arch package source
         uses: actions/upload-artifact@v4

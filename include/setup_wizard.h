@@ -1,0 +1,17 @@
+#pragma once
+
+#include <QWizard>
+#include <QLabel>
+#include <QRadioButton>
+#include <QVBoxLayout>
+#include "system_detector.h"
+
+class SetupWizard : public QWizard {
+    Q_OBJECT
+public:
+    explicit SetupWizard(QWidget* parent = nullptr);
+};
+
+class IntroPage : public QWizardPage { public: IntroPage(QWidget* parent = nullptr); };
+class DistroPage : public QWizardPage { public: DistroPage(QWidget* parent = nullptr); private: QRadioButton *uBtn, *fBtn, *aBtn; };
+class InstallPage : public QWizardPage { public: InstallPage(QWidget* parent = nullptr); void initializePage() override; private: QLabel* cmdLabel; };

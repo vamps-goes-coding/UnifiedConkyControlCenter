@@ -2,7 +2,7 @@
   "application": {
     "display_name": "Unified Conky Control Center",
     "internal_name": "UnifiedConkyControlCenter",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "organization": "Conky",
     "github_url": "https://github.com/yourusername/Unified-Conky-Control-Center"
   },

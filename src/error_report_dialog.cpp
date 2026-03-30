@@ -309,7 +309,7 @@ QString ErrorReportDialog::get_log_excerpts() {
 
 void ErrorReportDialog::open_github_issue() {
     // Default GitHub URL - can be configured in app_config.json
-    QString github_url = "https://github.com/beastvamps/Unified-Conky-Control-Center/issues/new";
+    QString github_url = "https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/issues/new";
     
     // Try to get from config if available
     try {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21) # Higher version for better Qt6 & FetchContent support 
-project(UnifiedConkyControlCenter VERSION 1.0.0 LANGUAGES CXX)
+project(UnifiedConkyControlCenter VERSION 1.0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and modern Qt 6.8 features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -59,6 +59,8 @@ set(SOURCES
     src/display_server.cpp
     src/progress_dialog.cpp
     src/preferences_dialog.cpp
+    src/system_detector.cpp
+    src/setup_wizard.cpp
 
     include/first_run_setup.h
     include/conky_syntax_highlighter.h
@@ -67,6 +69,8 @@ set(SOURCES
     include/error_report_dialog.h
     include/progress_dialog.h
     include/preferences_dialog.h
+    include/system_detector.h
+    include/setup_wizard.h
 )
 
 # 4. Create Executable 
