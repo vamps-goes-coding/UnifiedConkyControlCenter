@@ -89,6 +89,31 @@ install(FILES config/app_config.json DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJ
 install(FILES resources/conky-control-center.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps RENAME UnifiedConkyControlCenter.png)
 
-# CPack [cite: 6]
-set(CPACK_PACKAGE_NAME "Unified-Conky-Control-Center")
+# 7. CPack Configuration [cite: 6] - Supports DEB, RPM, and TGZ
+set(CPACK_PACKAGE_NAME "unified-conky-control-center")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR "Unified Conky Control Center")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A unified control center for managing Conky configurations across X11 and Wayland")
+set(CPACK_PACKAGE_DESCRIPTION "Unified Conky Control Center provides a graphical interface to manage, edit, and control Conky panel configurations on both X11 and Wayland display servers.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/vamps-goes-coding/UnifiedConkyControlCenter")
+set(CPACK_PACKAGE_CONTACT "Unified Conky Control Center Team")
+
+# Debian/Ubuntu Package Configuration
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-base, qt6-wayland, libqt6gui6, conky")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_PACKAGE_SECTION "x11")
+set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+
+# RPM Package Configuration
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtwayland, qt6-qtbase-gui, conky")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL")
+set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+
+# TGZ/Archive Configuration
+set(CPACK_ARCHIVE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-x86_64")
+
+# Common CPack Settings
+set(CPACK_GENERATOR "DEB;RPM;TGZ")
+set(CPACK_COMPONENTS_GROUPING IGNORE)
+
 include(CPack)

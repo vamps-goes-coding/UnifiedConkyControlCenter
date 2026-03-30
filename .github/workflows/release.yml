@@ -1,0 +1,139 @@
+name: Release & Package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+
+jobs:
+  package:
+    name: Build Release Packages
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: "Ubuntu 24.04 (DEB)"
+            os: ubuntu-latest
+            container: ubuntu:24.04
+            generator: DEB
+          - name: "Fedora (RPM)"
+            os: ubuntu-latest
+            container: fedora:latest
+            generator: RPM
+          - name: "Linux Generic (TGZ)"
+            os: ubuntu-latest
+            generator: TGZ
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Ubuntu container
+        if: matrix.container == 'ubuntu:24.04'
+        run: |
+          apt-get update
+          apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev git
+
+      - name: Setup Fedora container
+        if: matrix.container == 'fedora:latest'
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel nlohmann-json-devel git
+
+      - name: Setup Generic Linux (non-container)
+        if: matrix.container == ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev git
+
+      - name: Configure and build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Generate packages with CPack
+        run: |
+          cd build
+          cpack -G ${{ matrix.generator }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.generator }}
+          path: |
+            build/*.deb
+            build/*.rpm
+            build/*.tar.gz
+
+  release:
+    name: Create GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-packages
+
+      - name: List artifacts
+        run: find release-packages -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-packages/**/*
+          body: |
+            ## Release Notes
+            
+            This release includes packages for multiple Linux distributions:
+            
+            ### Installers
+            - **DEB** (Debian 12+, Ubuntu 22.04+): `*-Linux-x86_64.deb`
+            - **RPM** (Fedora, RHEL, CentOS): `*-Linux-x86_64.rpm`
+            - **TGZ** (Generic Linux): `*-Linux-x86_64.tar.gz`
+            
+            ### Installation Instructions
+            
+            **Ubuntu/Debian:**
+            ```bash
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.deb
+            sudo apt-get install ./unified-conky-control-center-*.deb
+            ```
+            
+            **Fedora/RHEL/CentOS:**
+            ```bash
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.rpm
+            sudo dnf install ./unified-conky-control-center-*.rpm
+            ```
+            
+            **Generic Linux (TGZ):**
+            ```bash
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.tar.gz
+            mkdir -p ~/.local
+            tar xzf unified-conky-control-center-*.tar.gz -C ~/.local
+            ~/.local/usr/local/bin/UnifiedConkyControlCenter
+            ```
+            
+            **Using Smart Installer Script:**
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash
+            ```
+            
+            Or specify a version:
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash -s -- --version ${{ github.ref_name }}
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
