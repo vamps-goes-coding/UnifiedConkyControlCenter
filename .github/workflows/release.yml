@@ -50,7 +50,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf -y update
-          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel nlohmann-json-devel
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel nlohmann-json-devel rpm-build
 
       - name: Configure and build
         run: |
