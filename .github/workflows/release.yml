@@ -11,44 +11,16 @@ on:
         required: true
 
 jobs:
-  package:
-    name: Build Release Packages
+  package-ubuntu:
+    name: "Ubuntu 24.04 (DEB Package)"
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - name: "Ubuntu 24.04 (DEB)"
-            os: ubuntu-latest
-            container: ubuntu:24.04
-            generator: DEB
-          - name: "Fedora (RPM)"
-            os: ubuntu-latest
-            container: fedora:latest
-            generator: RPM
-          - name: "Linux Generic (TGZ)"
-            os: ubuntu-latest
-            generator: TGZ
-
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Ubuntu container
-        if: matrix.container == 'ubuntu:24.04'
-        run: |
-          apt-get update
-          apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev git
-
-      - name: Setup Fedora container
-        if: matrix.container == 'fedora:latest'
-        run: |
-          dnf -y update
-          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel nlohmann-json-devel git
-
-      - name: Setup Generic Linux (non-container)
-        if: matrix.container == ''
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev git
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev
 
       - name: Configure and build
         run: |
@@ -57,19 +29,75 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: Generate packages with CPack
+      - name: Generate DEB package
         run: |
           cd build
-          cpack -G ${{ matrix.generator }}
+          cpack -G DEB
 
-      - name: Upload artifact
+      - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: packages-${{ matrix.generator }}
-          path: |
-            build/*.deb
-            build/*.rpm
-            build/*.tar.gz
+          name: deb-package
+          path: build/*.deb
+
+  package-fedora:
+    name: "Fedora (RPM Package)"
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build dependencies
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel nlohmann-json-devel
+
+      - name: Configure and build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Generate RPM package
+        run: |
+          cd build
+          cpack -G RPM
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: build/*.rpm
+
+  package-tgz:
+    name: "Generic Linux (TGZ Archive)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev
+
+      - name: Configure and build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Generate TGZ package
+        run: |
+          cd build
+          cpack -G TGZ
+
+      - name: Upload TGZ artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tgz-archive
+          path: build/*.tar.gz
 
   release:
     name: Create GitHub Release
