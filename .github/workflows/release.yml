@@ -125,10 +125,17 @@ jobs:
       - name: List artifacts
         run: find release-packages -type f
 
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          cp -r release-packages/* release-files/
+          cp install.sh release-files/
+          ls -lh release-files/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: release-packages/**/*
+          files: release-files/*
           body: |
             ## Release Notes
             
