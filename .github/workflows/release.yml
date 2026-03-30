@@ -70,8 +70,8 @@ jobs:
           name: rpm-package
           path: build/*.rpm
 
-  package-tgz:
-    name: "Generic Linux (TGZ Archive)"
+  package-arch:
+    name: "Arch Linux (Package Source)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,20 +88,29 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: Generate TGZ package
+      - name: Generate TGZ package for Arch
         run: |
           cd build
           cpack -G TGZ
 
-      - name: Upload TGZ artifact
+      - name: Update PKGBUILD with current version
+        run: |
+          # Extract version from tag (remove 'v' prefix)
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          sed -i "s/pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s|source=.*|source=(\"https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v\${pkgver}/unified-conky-control-center-\${pkgver}-Linux-x86_64.tar.gz\")|" PKGBUILD
+
+      - name: Upload Arch package source
         uses: actions/upload-artifact@v4
         with:
-          name: tgz-archive
-          path: build/*.tar.gz
+          name: arch-package
+          path: |
+            PKGBUILD
+            build/*.tar.gz
 
   release:
     name: Create GitHub Release
-    needs: [package-ubuntu, package-fedora, package-tgz]
+    needs: [package-ubuntu, package-fedora, package-tgz, package-arch]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -128,6 +137,7 @@ jobs:
             ### Installers
             - **DEB** (Debian 12+, Ubuntu 22.04+): `*-Linux-x86_64.deb`
             - **RPM** (Fedora, RHEL, CentOS): `*-Linux-x86_64.rpm`
+            - **Arch Linux** (Arch, Manjaro, EndeavourOS): Use the provided `PKGBUILD` file
             - **TGZ** (Generic Linux): `*-Linux-x86_64.tar.gz`
             
             ### Installation Instructions
@@ -142,6 +152,16 @@ jobs:
             ```bash
             wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.rpm
             sudo dnf install ./unified-conky-control-center-*.rpm
+            ```
+            
+            **Arch Linux:**
+            ```bash
+            # Download PKGBUILD and source
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/PKGBUILD
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.tar.gz
+            
+            # Build and install
+            makepkg -si
             ```
             
             **Generic Linux (TGZ):**

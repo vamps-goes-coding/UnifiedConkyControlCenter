@@ -41,6 +41,7 @@ We provide ready-to-install packages for all major distributions:
 
 - **Ubuntu/Debian**: `sudo dpkg -i unified-conky-control-center-1.0.0-Linux-x86_64.deb`
 - **Fedora/RHEL/CentOS**: `sudo dnf install ./unified-conky-control-center-1.0.0-Linux-x86_64.rpm`
+- **Arch Linux**: Download `PKGBUILD` and run `makepkg -si`
 - **Any Linux**: Extract the generic archive: `tar xzf unified-conky-control-center-1.0.0-Linux-x86_64.tar.gz`
 - **Smart Installer**: Detects your OS and installs automatically:
   ```bash
@@ -48,6 +49,38 @@ We provide ready-to-install packages for all major distributions:
   ```
 
 All packages available at: https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases
+
+### Detailed Installation Instructions
+
+**Ubuntu/Debian:**
+```bash
+wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.1/unified-conky-control-center_1.0.0_amd64.deb
+sudo apt install ./unified-conky-control-center_*.deb
+```
+
+**Fedora/RHEL/CentOS:**
+```bash
+wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.1/unified-conky-control-center-1.0.0-1.x86_64.rpm
+sudo dnf install ./unified-conky-control-center-*.rpm
+```
+
+**Arch Linux:**
+```bash
+# Download PKGBUILD and source
+wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.1/PKGBUILD
+wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.1/unified-conky-control-center-1.0.1-Linux-x86_64.tar.gz
+
+# Build and install
+makepkg -si
+```
+
+**Generic Linux (TGZ):**
+```bash
+wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.1/unified-conky-control-center-1.0.1-Linux-x86_64.tar.gz
+mkdir -p ~/.local
+tar xzf unified-conky-control-center-*.tar.gz -C ~/.local
+~/.local/usr/local/bin/UnifiedConkyControlCenter
+```
 
 ### Option 2: Build from Source
 

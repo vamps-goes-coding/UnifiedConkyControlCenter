@@ -60,6 +60,10 @@ detect_os() {
             info "Detected: $OS (version $OS_VERSION)"
             INSTALLER_TYPE="rpm"
             ;;
+        arch|manjaro|endeavouros|garuda)
+            info "Detected: $OS (version $OS_VERSION)"
+            INSTALLER_TYPE="arch"
+            ;;
         *)
             warn "Unknown or unsupported distribution: $OS"
             info "Falling back to TGZ installer"
@@ -116,6 +120,72 @@ install_rpm() {
     fi
     
     info "RPM package installed successfully"
+}
+
+# Install Arch Linux package
+install_arch() {
+    info "Setting up Arch Linux PKGBUILD..."
+    
+    if ! command -v makepkg &> /dev/null; then
+        error "makepkg not found. This requires an Arch Linux system with pacman."
+    fi
+    
+    # Create temporary directory for PKGBUILD
+    local temp_dir=$(mktemp -d)
+    local pkgbuild_path="$temp_dir/PKGBUILD"
+    
+    # Create PKGBUILD file
+    cat > "$pkgbuild_path" << 'EOF'
+# Maintainer: Unified Conky Control Center Team
+pkgname=unified-conky-control-center
+pkgver=VERSION_PLACEHOLDER
+pkgrel=1
+pkgdesc="A unified control center for managing Conky configurations across X11 and Wayland"
+arch=('x86_64')
+url="https://github.com/vamps-goes-coding/UnifiedConkyControlCenter"
+license=('GPL')
+depends=('qt6-base' 'qt6-wayland' 'conky')
+makedepends=('cmake' 'gcc' 'qt6-tools')
+source=("https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v${pkgver}/unified-conky-control-center-${pkgver}-Linux-x86_64.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "${srcdir}"
+    tar -xzf "unified-conky-control-center-${pkgver}-Linux-x86_64.tar.gz"
+}
+
+package() {
+    cd "${srcdir}/unified-conky-control-center-${pkgver}-Linux-x86_64"
+    
+    # Install binary
+    install -Dm755 "usr/local/bin/UnifiedConkyControlCenter" "${pkgdir}/usr/bin/UnifiedConkyControlCenter"
+    
+    # Install desktop file
+    if [ -f "usr/local/share/applications/unified-conky-control-center.desktop" ]; then
+        install -Dm644 "usr/local/share/applications/unified-conky-control-center.desktop" "${pkgdir}/usr/share/applications/unified-conky-control-center.desktop"
+    fi
+    
+    # Install config files
+    if [ -d "usr/local/share/UnifiedConkyControlCenter" ]; then
+        cp -r "usr/local/share/UnifiedConkyControlCenter" "${pkgdir}/usr/share/"
+    fi
+}
+EOF
+    
+    # Replace version placeholder
+    sed -i "s/VERSION_PLACEHOLDER/${VERSION#v}/g" "$pkgbuild_path"
+    
+    info "Building Arch Linux package..."
+    cd "$temp_dir"
+    
+    # Build package (this will download and extract the TGZ)
+    makepkg -si --noconfirm || error "Failed to build/install Arch Linux package"
+    
+    # Cleanup
+    cd /
+    rm -rf "$temp_dir"
+    
+    info "Arch Linux package installed successfully"
 }
 
 # Install TGZ archive
@@ -219,6 +289,9 @@ main() {
             PACKAGE_NAME="unified-conky-control-center-${VERSION}-Linux-x86_64.rpm"
             PACKAGE_PATH=$(download_package "$PACKAGE_NAME")
             install_rpm "$PACKAGE_PATH"
+            ;;
+        arch)
+            install_arch
             ;;
         tgz)
             PACKAGE_NAME="unified-conky-control-center-${VERSION}-Linux-x86_64.tar.gz"
