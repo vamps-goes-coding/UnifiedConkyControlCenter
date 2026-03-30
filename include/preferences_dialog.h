@@ -26,6 +26,8 @@ private slots:
     void save_preferences();
     void reset_defaults();
     void browse_log_folder();
+    void browse_conky_config_folder();
+    void browse_themes_folder();
 
 private:
     void setup_ui();
@@ -57,6 +59,11 @@ private:
     QCheckBox* show_toolbar_checkbox_;
     QCheckBox* show_statusbar_checkbox_;
     QSpinBox* refresh_interval_spin_;
+    
+    // Paths tab
+    QLineEdit* conky_config_edit_;
+    QLineEdit* themes_folder_edit_;
+    QComboBox* display_server_paths_combo_;
     
     QPushButton* save_button_;
     QPushButton* cancel_button_;

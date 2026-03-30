@@ -167,6 +167,48 @@ void PreferencesDialog::setup_ui() {
     ui_layout->addStretch();
     tab_widget->addTab(ui_tab, "UI");
     
+    // Paths tab
+    QWidget* paths_tab = new QWidget();
+    QVBoxLayout* paths_layout = new QVBoxLayout(paths_tab);
+    
+    QGroupBox* conky_paths_group = new QGroupBox("Conky Paths");
+    QVBoxLayout* conky_paths_layout = new QVBoxLayout(conky_paths_group);
+    
+    conky_paths_layout->addWidget(new QLabel("Conky configuration folder:"));
+    QHBoxLayout* conky_config_layout = new QHBoxLayout();
+    conky_config_edit_ = new QLineEdit();
+    conky_config_edit_->setReadOnly(true);
+    conky_config_layout->addWidget(conky_config_edit_);
+    QPushButton* browse_conky_config_btn = new QPushButton("Browse...");
+    connect(browse_conky_config_btn, &QPushButton::clicked, this, &PreferencesDialog::browse_conky_config_folder);
+    conky_config_layout->addWidget(browse_conky_config_btn);
+    conky_paths_layout->addLayout(conky_config_layout);
+    
+    conky_paths_layout->addWidget(new QLabel("Themes folder:"));
+    QHBoxLayout* themes_layout = new QHBoxLayout();
+    themes_folder_edit_ = new QLineEdit();
+    themes_folder_edit_->setReadOnly(true);
+    themes_layout->addWidget(themes_folder_edit_);
+    QPushButton* browse_themes_btn = new QPushButton("Browse...");
+    connect(browse_themes_btn, &QPushButton::clicked, this, &PreferencesDialog::browse_themes_folder);
+    themes_layout->addWidget(browse_themes_btn);
+    conky_paths_layout->addLayout(themes_layout);
+    
+    paths_layout->addWidget(conky_paths_group);
+    
+    QGroupBox* display_server_group = new QGroupBox("Display Server");
+    QVBoxLayout* display_server_layout = new QVBoxLayout(display_server_group);
+    display_server_layout->addWidget(new QLabel("Display server (requires restart):"));
+    display_server_paths_combo_ = new QComboBox();
+    display_server_paths_combo_->addItem("Auto-detect", "auto");
+    display_server_paths_combo_->addItem("X11", "x11");
+    display_server_paths_combo_->addItem("Wayland", "wayland");
+    display_server_layout->addWidget(display_server_paths_combo_);
+    paths_layout->addWidget(display_server_group);
+    
+    paths_layout->addStretch();
+    tab_widget->addTab(paths_tab, "Paths");
+    
     main_layout->addWidget(tab_widget);
     
     // Buttons
@@ -226,6 +268,14 @@ void PreferencesDialog::load_preferences() {
     show_toolbar_checkbox_->setChecked(settings.value("show_toolbar", true).toBool());
     show_statusbar_checkbox_->setChecked(settings.value("show_statusbar", true).toBool());
     refresh_interval_spin_->setValue(settings.value("refresh_interval", 5).toInt());
+    
+    // Paths
+    conky_config_edit_->setText(QString::fromStdString(ConfigManager::instance().get_conky_wayland_directory().string()));
+    themes_folder_edit_->setText(QString::fromStdString(ConfigManager::instance().get_themes_directory().string()));
+    int ds_index = display_server_paths_combo_->findData(display_server);
+    if (ds_index >= 0) {
+        display_server_paths_combo_->setCurrentIndex(ds_index);
+    }
 }
 
 void PreferencesDialog::save_preferences() {
@@ -259,6 +309,14 @@ void PreferencesDialog::save_preferences() {
     settings.setValue("show_statusbar", show_statusbar_checkbox_->isChecked());
     settings.setValue("refresh_interval", refresh_interval_spin_->value());
     
+    // Paths
+    if (!conky_config_edit_->text().isEmpty()) {
+        ConfigManager::instance().set_conky_config_path(conky_config_edit_->text().toStdString());
+    }
+    
+    // Save display server from paths tab
+    ConfigManager::instance().set_display_server(display_server_paths_combo_->currentData().toString().toStdString());
+    
     // Save config
     ConfigManager::instance().save_config();
     
@@ -284,6 +342,20 @@ void PreferencesDialog::browse_log_folder() {
     QString dir = QFileDialog::getExistingDirectory(this, "Select Log Folder", log_folder_edit_->text());
     if (!dir.isEmpty()) {
         log_folder_edit_->setText(dir);
+    }
+}
+
+void PreferencesDialog::browse_conky_config_folder() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Select Conky Configuration Folder", conky_config_edit_->text());
+    if (!dir.isEmpty()) {
+        conky_config_edit_->setText(dir);
+    }
+}
+
+void PreferencesDialog::browse_themes_folder() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Select Themes Folder", themes_folder_edit_->text());
+    if (!dir.isEmpty()) {
+        themes_folder_edit_->setText(dir);
     }
 }
 

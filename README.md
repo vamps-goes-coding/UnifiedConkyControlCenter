@@ -1,103 +1,84 @@
 # Unified Conky Control Center
 
-A graphical interface for managing Conky panels, themes, and configurations. This version has been refactored to be fully configurable through JSON configuration files, making it easy for users to customize without modifying source code.
+**Never wrestle with Conky config files again.** A unified, visual control center that works seamlessly on both X11 and Wayland desktops—perfect if you love customizable system monitoring displays but hate managing scattered configuration files.
 
-## Features
+## Why This Exists
 
-- **First-Run Setup**: On first launch, a setup dialog guides you through selecting your Conky configuration and themes folders
-- **Panel Management**: Start, stop, and restart Conky panels
-- **Theme Management**: Apply, create, and manage themes with color customization
-- **Gap Adjustment**: Adjust panel positioning with gap controls
-- **Editor Integration**: Open panel configurations in your preferred text editor
-- **CSV Import/Export**: Bulk create themes from CSV files
-- **System Tray Integration**: Quick access from system tray
-- **CLI Mode**: Command-line interface for scripting
+Conky is incredibly powerful for creating custom system monitor panels, but managing multiple `.conf` files across different display servers (X11 vs Wayland) gets messy fast. This tool brings everything into one clean interface so you can focus on what your panels *display* instead of where they're *stored*.
+
+## What You Get
+
+- **First-Run Setup**: We detect your system and ask where your Conky configs live. That's it—no digging through directories
+- **Panel Control**: Start, stop, and restart panels with a click instead of terminal commands
+- **Theme Manager**: Build and apply themes without wrestling with Lua syntax
+- **Visual Gap Adjustment**: Tweak panel positioning with sliders, not config values
+- **Quick Edit**: Open any config in your favorite editor—VS Code, Sublime, Vim, whatever
+- **Batch Import**: Load multiple themes from a CSV file when you're setting up
+- **Display Server Magic**: Automatically detects X11 vs Wayland and handles the differences
+- **System Tray**: Quick access to controls from your desktop panel
+- **CLI Mode**: Script it if you need headless operations
 
 ## Configuration
 
-All settings are now configurable through `config/app_config.json`. This allows you to customize:
+Everything's configurable without touching source code—either through the UI or by editing `~/.config/UnifiedConkyControlCenter/app_config.json`.
 
-### Application Settings
-- Display name, internal name, version, and organization
+**Most users won't need to manually edit this**, but power users can:
 
-### Path Configuration
-- Environment variables for Conky directories
-- Default paths for Conky configurations and themes
+- **Paths**: Where Conky configs and themes live (set via first-run setup, changeable in Preferences)
+- **Display Server**: Auto-detected, but can override for X11/Wayland
+- **Panel Discovery**: How we find your `.conf` files (prefix, extensions, exclusions)
+- **UI Themes**: Choose from Light, Dark Charcoal, Dracula, Nord, and more
+- **Editors**: Register your favorite text editor for opening configs
+- **Refresh Intervals**: How often we check for panel status changes
 
-### Panel Discovery
-- Configuration file prefix (default: `conky-wayland-`)
-- Configuration file extension (default: `.conf`)
-- Files to exclude from panel discovery
+Default paths are smart—they search common locations like `~/.config/conky` and adapt to your display server.
 
-### UI Settings
-- Window dimensions (minimum and default size)
-- Refresh intervals for heartbeat and panel status
-- Default panels to start
+## Quick Start
 
-### Theme Settings
-- Theme file extension
-- Theme file names (current.lua, categories.lua, etc.)
+### Option 1: Pre-built Packages (Easiest)
 
-### App Themes
-- Available UI themes (Dark Charcoal, Dracula, Nord, etc.)
+We provide ready-to-install packages for all major distributions:
 
-### Editors
-- List of available text editors with commands and icons
+- **Ubuntu/Debian**: `sudo dpkg -i unified-conky-control-center-1.0.0-Linux-x86_64.deb`
+- **Fedora/RHEL/CentOS**: `sudo dnf install ./unified-conky-control-center-1.0.0-Linux-x86_64.rpm`
+- **Any Linux**: Extract the generic archive: `tar xzf unified-conky-control-center-1.0.0-Linux-x86_64.tar.gz`
+- **Smart Installer**: Detects your OS and installs automatically:
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash
+  ```
 
-## Installation
+All packages available at: https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases
 
-### Prerequisites
+### Option 2: Build from Source
 
- - CMake 3.21 or higher
- - Qt 6.4 or higher
- - C++20 compatible compiler (GCC 10+, Clang 10+)
-- nlohmann_json library (automatically downloaded if not found)
- - **Runtime:** Conky must be installed on your system.
+**Requirements:**
+- CMake 3.21+
+- Qt 6.4+
+- C++20 compiler (GCC 10+, Clang 10+)
+- Conky (runtime dependency)
 
-### Distro Dependencies
+**Install build dependencies:**
 
-- **Ubuntu/Debian:** `sudo apt install build-essential cmake qt6-base-dev libqt6widgets6`
-- **Fedora:** `sudo dnf install gcc-c++ cmake qt6-qtbase-devel`
-- **Arch Linux:** `sudo pacman -S base-devel cmake qt6-base`
+- **Ubuntu/Debian**: `sudo apt install build-essential cmake qt6-base-dev libqt6widgets6 nlohmann-json3-dev`
+- **Fedora**: `sudo dnf install gcc-c++ cmake qt6-qtbase-devel nlohmann-json-devel`
+- **Arch**: `sudo pacman -S base-devel cmake qt6-base nlohmann-json`
 
-### Building from Source
-
+**Build:**
 ```bash
-# Clone the repository
+git clone https://github.com/vamps-goes-coding/UnifiedConkyControlCenter.git
 cd Unified-Conky-Control-Center
-
-# Create build directory
-mkdir build
-cd build
-
-# Configure and build
-cmake ..
-make
-
-# Install (optional)
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
 sudo make install
 ```
 
-### ⚠️ Important: Copying to Another System
-
-**DO NOT copy the `build/` directory** when transferring to another system. The build directory contains cached paths from your original system.
-
-**To copy to another system:**
+**First time?** Just run it:
 ```bash
-# From the project root, create a clean archive (excluding build/)
-tar --exclude='build' -czvf UnifiedConkyControlCenter.tar.gz .
-
-# Or copy only the source files
-rsync -av --exclude='build' /path/to/Unified-Conky-Control-Center/ /destination/
+UnifiedConkyControlCenter
 ```
 
-**On the target system:**
-```bash
-# Extract and build fresh
-tar -xzvf UnifiedConkyControlCenter.tar.gz
-cd Unified-Conky-Control-Center
-mkdir build && cd build
-cmake ..
+It'll guide you through selecting your Conky config folder.
 make
 ```
 
@@ -123,30 +104,56 @@ make
 
 ### First Run
 
-On first launch, the application will show a setup dialog where you can:
-1. Select your Conky configuration folder (containing .conf files)
-2. Select your themes folder (containing .lua theme files)
-3. Optionally create sample configuration files
-
-The paths you select will be saved to `~/.config/UnifiedConkyControlCenter/app_config.json`.
-
-### GUI Mode
-
+Launch the application:
 ```bash
-./UnifiedConkyControlCenter
+UnifiedConkyControlCenter
 ```
 
-### CLI Mode
+The setup wizard will ask you to select:
+1. **Conky Config Folder** - Where your `.conf` files live (usually `~/.config/conky`)
+2. **Themes Folder** - Where your `.lua` theme files are stored
+3. **Display Server** - Whether you're using X11 or Wayland
 
+These settings are saved automatically and can be changed later from the **Preferences dialog** → **Paths tab**.
+
+### What You Can Do
+
+**View all your Conky panels** - The main window displays every Conky configuration file it finds. See at a glance which panels are running and which are stopped.
+
+**Start/stop panels individually** - Click to toggle any panel on or off. Changes take effect immediately.
+
+**Edit configs graphically** - Click the "Edit" button to open configs in your preferred editor (VS Code, Vim, Nano, or others). Supports syntax highlighting for Conky syntax.
+
+**Apply and manage themes** - Browse and preview Lua theme files, apply them to your panels, or create custom themes from templates.
+
+**Monitor panel health** - The dashboard shows you which panels are running, their status, and any errors encountered.
+
+**Customize the application itself** - Preferences dialog lets you configure application themes, editor choice, logging level, and default panels to start on launch.
+
+### Command-Line Mode
+
+For automation or scripting:
 ```bash
-./UnifiedConkyControlCenter --cli
+UnifiedConkyControlCenter --cli
 ```
 
-### Environment Variables
+### Environment Variable Overrides
 
-- `CONKY_WAYLAND_DIR`: Override the default Conky configuration directory
-- `CONKY_THEMES_DIR`: Override the default themes directory
-- `CONKY_CONTROL_CENTER_CONFIG`: Override the configuration file path
+For power users or automated setups, environment variables can override the default paths:
+
+```bash
+# Use a different Conky config directory
+export CONKY_WAYLAND_DIR="$HOME/.config/conky-custom"
+UnifiedConkyControlCenter
+
+# Use a different themes directory
+export CONKY_THEMES_DIR="$HOME/.config/conky/my-themes"
+UnifiedConkyControlCenter
+
+# Use a completely custom config file location
+export CONKY_CONTROL_CENTER_CONFIG="$HOME/.config/my-app-config.json"
+UnifiedConkyControlCenter
+```
 
 ## Configuration File Structure
 
@@ -249,34 +256,55 @@ Change the theme file extension:
 
 ## Troubleshooting
 
-### First Run Setup Not Appearing
+### "Application won't start"
 
-If the first-run setup dialog doesn't appear:
-1. Delete the settings file: `~/.config/UnifiedConkyControlCenter/`
-2. Restart the application
+Check your system has the required dependencies:
+```bash
+# Ubuntu/Debian
+sudo apt install libqt6widgets6 libqt6core6
+# Fedora
+sudo dnf install qt6-qtbase
+# Arch
+sudo pacman -S qt6-base
+```
 
-### Configuration Not Loading
+### "Can't find my Conky config files"
 
-1. Check that the configuration file exists in one of these locations:
-   - `./config/app_config.json` (current directory)
-   - `~/.config/UnifiedConkyControlCenter/app_config.json`
-   - `/etc/UnifiedConkyControlCenter/app_config.json`
+1. **First run setup**: Delete `~/.config/UnifiedConkyControlCenter/` and restart — you'll be prompted to select your config folder
+2. **Already configured**: Go to Preferences → Paths and click Browse to select the correct folder
+3. **Check manually**: Your configs are usually in one of:
+   - `~/.config/conky/`
+   - `~/.config/conky/conky-wayland/`
+   - Custom location set via environment: `echo $CONKY_WAYLAND_DIR`
 
-2. Verify the JSON syntax is valid
+### "Panels don't start when I click toggle"
 
-3. Check the console output for error messages
+1. Make sure Conky is installed: `which conky`
+2. Try starting Conky manually to verify it works: `conky -c ~/.config/conky/conky-wayland-basic.conf`
+3. Check application logs: In Preferences → Logging, enable Debug level and restart
+4. Look for error messages in `~/.config/UnifiedConkyControlCenter/logs/`
 
-### Panels Not Discovered
+### "Settings not saving between sessions"
 
-1. Verify the `config_prefix` matches your Conky configuration files
-2. Check that the `config_extension` is correct
-3. Ensure the Conky directory path is correct
+1. Check folder permissions:
+   ```bash
+   ls -la ~/.config/UnifiedConkyControlCenter/
+   chmod -R u+w ~/.config/UnifiedConkyControlCenter/
+   ```
+2. Ensure your home directory isn't read-only
+3. Try running with explicit config path: `CONKY_CONTROL_CENTER_CONFIG=/tmp/test-config.json UnifiedConkyControlCenter`
 
-### Themes Not Found
+### "Build fails on my system"
 
-1. Verify the themes directory path
-2. Check that theme files have the correct extension
-3. Ensure the categories.lua file exists
+1. **Qt6 not found**: Install Qt6 development packages and set: `cmake .. -DCMAKE_PREFIX_PATH=/opt/qt6`
+2. **CMake too old**: Install CMake 3.21+: https://cmake.org/download/
+3. **Compiler missing**: Install GCC/Clang: `sudo apt install build-essential` (Ubuntu) or `sudo dnf install gcc-c++` (Fedora)
+4. **See full error**: After cmake fails, check `build/CMakeOutput.log` and `build/CMakeError.log`
+
+**Still stuck?** Open an issue at https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/issues with:
+- Your OS and version
+- Output of `cmake --version` and `qmake --version`
+- The full error message from your build
 
 ## Contributing
 
