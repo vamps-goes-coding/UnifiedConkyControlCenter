@@ -288,4 +288,8 @@ This project is open source. See the LICENSE file for details.
 
 ## Credits
 
-Original Unified Conky Control Center by the Conky community.
+Original Unified Conky Control Center by Mr.Vamps, inspired by the Conky Community.
+
+## Website Links
+
+Conky website: www.conky.cc
