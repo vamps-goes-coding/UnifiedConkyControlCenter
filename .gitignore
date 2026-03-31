@@ -65,3 +65,18 @@ run-tests.sh
 test-local.sh
 *.md
 !README.md
+
+# Secret Keys
+.ssh/
+id_ed25519*
+id_rsa*
+*.pub
+*.pem
+
+# Block everything in the .ssh folder if it's in this project
+.ssh/
+# Block common private key names even without extensions
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa

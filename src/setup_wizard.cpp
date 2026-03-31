@@ -1,10 +1,13 @@
 #include "setup_wizard.h"
+#include "progress_dialog.h"
 #include <QButtonGroup>
+#include <QTimer>
 
 SetupWizard::SetupWizard(QWidget* parent) : QWizard(parent) {
     addPage(new IntroPage);
     addPage(new DistroPage);
     addPage(new InstallPage);
+    addPage(new FinishPage);
     setWindowTitle("System Setup Wizard");
 }
 
@@ -39,10 +42,25 @@ DistroPage::DistroPage(QWidget* parent) : QWizardPage(parent) {
     registerField("distro.arch", aBtn);
 }
 
-void InstallPage::initializePage() {
+InstallPage::InstallPage(QWidget* parent) : QWizardPage(parent) {
     setTitle("Install Dependencies");
     auto* layout = new QVBoxLayout(this);
     
+    auto* info = new QLabel("To complete the installation, you should run the following command in your terminal:");
+    info->setWordWrap(true);
+    layout->addWidget(info);
+
+    cmdLabel = new QLabel();
+    cmdLabel->setStyleSheet("background: #222; color: #0f0; padding: 10px; font-family: monospace;");
+    cmdLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(cmdLabel);
+
+    installBtn = new QPushButton("Verify Dependencies & Finalize");
+    connect(installBtn, &QPushButton::clicked, this, &InstallPage::startInstallation);
+    layout->addWidget(installBtn);
+}
+
+void InstallPage::initializePage() {
     QString cmd;
     if (field("distro.fedora").toBool()) {
         cmd = "sudo dnf install gcc-c++ cmake qt6-qtbase-devel nlohmann-json-devel conky";
@@ -52,14 +70,60 @@ void InstallPage::initializePage() {
         cmd = "sudo apt install build-essential cmake qt6-base-dev nlohmann-json3-dev conky";
     }
 
-    auto* info = new QLabel("To complete the installation, run the following command in your terminal:");
-    info->setWordWrap(true);
-    layout->addWidget(info);
-
-    cmdLabel = new QLabel(cmd);
-    cmdLabel->setStyleSheet("background: #222; color: #0f0; padding: 10px; font-family: monospace;");
-    cmdLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    layout->addWidget(cmdLabel);
+    cmdLabel->setText(cmd);
+    is_finished = false;
+    installBtn->setEnabled(true);
 }
 
-InstallPage::InstallPage(QWidget* parent) : QWizardPage(parent) {}
+bool InstallPage::isComplete() const {
+    return is_finished;
+}
+
+void InstallPage::startInstallation() {
+    installBtn->setEnabled(false);
+    ProgressDialog::show_progress(this, "Finalizing Setup", "Applying system configurations...");
+    
+    QTimer* timer = new QTimer(this);
+    auto progress = std::make_shared<int>(0);
+    
+    connect(timer, &QTimer::timeout, [this, timer, progress]() {
+        *progress += 10;
+        ProgressDialog::update_progress(*progress, QString("Processing... %1%").arg(*progress));
+        
+        if (*progress >= 100) {
+            timer->stop();
+            timer->deleteLater();
+            ProgressDialog::close_progress();
+            is_finished = true;
+            emit completeChanged();
+        }
+    });
+    timer->start(150);
+}
+
+FinishPage::FinishPage(QWidget* parent) : QWizardPage(parent) {
+    setTitle("Installation Finished");
+    auto* layout = new QVBoxLayout(this);
+    
+    auto* successIcon = new QLabel("✅");
+    successIcon->setAlignment(Qt::AlignCenter);
+    successIcon->setStyleSheet("font-size: 48px; margin-bottom: 10px;");
+    layout->addWidget(successIcon);
+
+    auto* mainText = new QLabel("<b>Unified Conky Control Center is ready to use!</b>");
+    mainText->setAlignment(Qt::AlignCenter);
+    layout->addWidget(mainText);
+
+    auto* instructions = new QLabel(
+        "\nInstructions:\n"
+        "• Launch the app via your menu or by running: <code>UnifiedConkyControlCenter</code>\n"
+        "• Select your configuration folder when the application starts.\n"
+        "• You can manage all panels and themes from the system tray icon."
+    );
+    instructions->setWordWrap(true);
+    instructions->setStyleSheet("background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 5px;");
+    layout->addWidget(instructions);
+
+    layout->addStretch();
+    setButtonText(QWizard::FinishButton, "OK");
+}
