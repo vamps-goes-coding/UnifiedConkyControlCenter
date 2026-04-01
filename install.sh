@@ -12,7 +12,7 @@ set -e
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.0.3"
+VERSION="v1.0.4"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
@@ -312,7 +312,41 @@ check_privileges() {
         fatal "Installation cancelled — sudo access required"
 
     # Prompt sudo now so it's cached
-    sudo true || fatal "Failed to obtain sudo privileges"
+    # Use -A flag to leverage askpass helper for GUI environments, or fall back to terminal
+    if [ "$GUI_TOOLKIT" != "cli" ]; then
+        # GUI mode: try to use askpass helper if available
+        if command -v ssh-askpass &>/dev/null; then
+            SUDO_ASKPASS=ssh-askpass sudo -A true || fatal "Failed to obtain sudo privileges"
+        elif command -v ksshaskpass &>/dev/null; then
+            SUDO_ASKPASS=ksshaskpass sudo -A true || fatal "Failed to obtain sudo privileges"
+        elif command -v zenity &>/dev/null; then
+            # Create a temporary askpass script using zenity
+            local askpass_script=$(mktemp)
+            cat > "$askpass_script" << 'ASKPASS_EOF'
+#!/bin/bash
+zenity --password --title="Sudo Password Required"
+ASKPASS_EOF
+            chmod +x "$askpass_script"
+            SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
+            rm -f "$askpass_script"
+        elif command -v kdialog &>/dev/null; then
+            # Create a temporary askpass script using kdialog
+            local askpass_script=$(mktemp)
+            cat > "$askpass_script" << 'ASKPASS_EOF'
+#!/bin/bash
+kdialog --password "Enter sudo password:"
+ASKPASS_EOF
+            chmod +x "$askpass_script"
+            SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
+            rm -f "$askpass_script"
+        else
+            # No askpass helper available, try with explicit TTY allocation
+            sudo -v || fatal "Failed to obtain sudo privileges"
+        fi
+    else
+        # CLI mode: standard sudo should work with terminal
+        sudo -v || fatal "Failed to obtain sudo privileges"
+    fi
 }
 
 # =============================================================================
