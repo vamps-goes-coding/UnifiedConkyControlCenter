@@ -8,16 +8,16 @@ url="https://github.com/vamps-goes-coding/UnifiedConkyControlCenter"
 license=('GPL')
 depends=('qt6-base' 'qt6-wayland' 'conky')
 makedepends=('cmake' 'gcc' 'qt6-tools')
-source=("https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v${pkgver}/unified-conky-control-center-${pkgver}-Linux.tar.gz")
+source=("https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v${pkgver}/UnifiedConkyControlCenter-${pkgver}-Linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 prepare() {
     cd "${srcdir}"
-    tar -xzf "unified-conky-control-center-${pkgver}-Linux.tar.gz"
+    tar -xzf "UnifiedConkyControlCenter-${pkgver}-Linux-x86_64.tar.gz"
 }
 
 package() {
-    cd "${srcdir}/unified-conky-control-center-${pkgver}-Linux"
+    cd "${srcdir}/UnifiedConkyControlCenter-${pkgver}-Linux-x86_64"
 
     # Install binary
     install -Dm755 "usr/local/bin/UnifiedConkyControlCenter" "${pkgdir}/usr/bin/UnifiedConkyControlCenter"

@@ -553,16 +553,16 @@ url="https://github.com/${GITHUB_USER}/${GITHUB_REPO}"
 license=(GPL)
 depends=(conky)
 optdepends=('qt6-base: Qt6 runtime' 'qt5-base: Qt5 runtime')
-source=("${APP_NAME}-${VERSION_NUM}-Linux_x86_64.tar.gz")
+source=("${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz")
 sha256sums=(SKIP)
 
 prepare() {
     cd "\${srcdir}"
-    tar -xzf "${APP_NAME}-${VERSION_NUM}-Linux_x86_64.tar.gz" 2>/dev/null || true
+    tar -xzf "${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz" 2>/dev/null || true
 }
 
 package() {
-    local src="\${srcdir}/unified-conky-control-center-${VERSION_NUM}-Linux_x86_64"
+    local src="\${srcdir}/UnifiedConkyControlCenter-${VERSION_NUM}-Linux-x86_64"
     [ -d "\$src" ] || src="\${srcdir}"
 
     install -Dm755 "\$src/usr/local/bin/${APP_NAME}" "\${pkgdir}/usr/bin/${APP_NAME}"
