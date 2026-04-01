@@ -156,7 +156,7 @@ jobs:
           fi
           VERSION="${TAG#v}"
           sed -i "s/pkgver=.*/pkgver=${VERSION}/" PKGBUILD
-          sed -i "s|source=.*|source=(\"https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v\${pkgver}/unified-conky-control-center-\${pkgver}-Linux.tar.gz\")|" PKGBUILD
+          sed -i "s|source=.*|source=(\"https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v\${pkgver}/UnifiedConkyControlCenter-\${pkgver}-Linux-x86_64.tar.gz\")|" PKGBUILD
 
       - name: Upload Arch package source
         uses: actions/upload-artifact@v4
@@ -189,7 +189,7 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release-files
-          cp -r release-packages/* release-files/
+          find release-packages -type f | xargs -I{} cp {} release-files/
           cp install.sh release-files/
           ls -lh release-files/
 
@@ -212,21 +212,21 @@ jobs:
             
             **Ubuntu/Debian:**
             ```bash
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.deb
-            sudo apt-get install ./unified-conky-control-center-*.deb
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.deb
+            sudo apt-get install ./UnifiedConkyControlCenter-*.deb
             ```
             
             **Fedora/RHEL/CentOS:**
             ```bash
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.rpm
-            sudo dnf install ./unified-conky-control-center-*.rpm
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.rpm
+            sudo dnf install ./UnifiedConkyControlCenter-*.rpm
             ```
             
             **Arch Linux:**
             ```bash
             # Download PKGBUILD and source
             wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/PKGBUILD
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.tar.gz
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.tar.gz
             
             # Build and install
             makepkg -si
@@ -234,9 +234,9 @@ jobs:
             
             **Generic Linux (TGZ):**
             ```bash
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/unified-conky-control-center-${{ github.ref_name }}-Linux-x86_64.tar.gz
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.tar.gz
             mkdir -p ~/.local
-            tar xzf unified-conky-control-center-*.tar.gz -C ~/.local
+            tar xzf UnifiedConkyControlCenter-*.tar.gz -C ~/.local
             ~/.local/usr/local/bin/UnifiedConkyControlCenter
             ```
             
