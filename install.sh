@@ -6,6 +6,9 @@
 # =============================================================================
 
 set -e
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 
 # =============================================================================
 # CONFIG — change version here only, nowhere else
