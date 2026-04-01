@@ -129,7 +129,18 @@ detect_gui_toolkit() {
 gui_info() {
     local title="$1" msg="$2"
     case "$GUI_TOOLKIT" in
-        kdialog) kdialog --title "$title" --msgbox "$msg" ;;
+        kdialog)
+            # On Wayland, kdialog may hang — use timeout and fallback to CLI
+            if [ "$DISPLAY_SERVER" = "wayland" ]; then
+                if ! timeout 10 kdialog --title "$title" --msgbox "$msg" 2>/dev/null; then
+                    warn "kdialog timed out or failed, falling back to CLI"
+                    echo -e "\n${BOLD}$title${NC}\n$msg\n"
+                    read -rp "Press Enter to continue..." _
+                fi
+            else
+                kdialog --title "$title" --msgbox "$msg"
+            fi
+            ;;
         zenity)  zenity --info --title="$title" --text="$msg" --width=400 ;;
         yad)     yad --info --title="$title" --text="$msg" --width=400 --button="OK:0" ;;
         cli)     echo -e "\n${BOLD}$title${NC}\n$msg\n" ;;
@@ -140,7 +151,16 @@ gui_info() {
 gui_error() {
     local msg="$1"
     case "$GUI_TOOLKIT" in
-        kdialog) kdialog --title "Error — $APP_DISPLAY_NAME" --error "$msg\n\nSee log: $LOG_FILE" ;;
+        kdialog)
+            # On Wayland, kdialog may hang — use timeout and fallback to CLI
+            if [ "$DISPLAY_SERVER" = "wayland" ]; then
+                if ! timeout 10 kdialog --title "Error — $APP_DISPLAY_NAME" --error "$msg\n\nSee log: $LOG_FILE" 2>/dev/null; then
+                    error "$msg\nSee log: $LOG_FILE"
+                fi
+            else
+                kdialog --title "Error — $APP_DISPLAY_NAME" --error "$msg\n\nSee log: $LOG_FILE"
+            fi
+            ;;
         zenity)  zenity --error --title="Error" --text="$msg\n\nSee log: $LOG_FILE" --width=400 ;;
         yad)     yad --error --title="Error" --text="$msg\n\nSee log: $LOG_FILE" --width=400 --button="OK:0" ;;
         cli)     error "$msg\nSee log: $LOG_FILE" ;;
@@ -151,7 +171,28 @@ gui_error() {
 gui_confirm() {
     local title="$1" msg="$2"
     case "$GUI_TOOLKIT" in
-        kdialog) kdialog --title "$title" --yesno "$msg" ;;
+        kdialog)
+            # On Wayland, kdialog may hang — use timeout and fallback to CLI
+            if [ "$DISPLAY_SERVER" = "wayland" ]; then
+                local result
+                if result=$(timeout 10 kdialog --title "$title" --yesno "$msg" 2>/dev/null); then
+                    return 0
+                else
+                    local rc=$?
+                    # If timeout (124) or error, fall back to CLI
+                    if [ $rc -eq 124 ] || [ $rc -ne 0 ]; then
+                        warn "kdialog timed out or failed, falling back to CLI"
+                        echo -e "\n${BOLD}$title${NC}\n$msg"
+                        read -rp "Confirm? [y/N]: " resp
+                        [[ "$resp" =~ ^[Yy]$ ]]
+                    else
+                        return $rc
+                    fi
+                fi
+            else
+                kdialog --title "$title" --yesno "$msg"
+            fi
+            ;;
         zenity)  zenity --question --title="$title" --text="$msg" --width=400 ;;
         yad)     yad --question --title="$title" --text="$msg" --width=400 --button="Yes:0" --button="No:1" ;;
         cli)
