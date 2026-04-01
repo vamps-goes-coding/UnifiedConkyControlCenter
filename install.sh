@@ -916,10 +916,10 @@ do_local_install() {
 interactive_mode_select() {
     local choice
     choice=$(gui_menu "Installer" "What would you like to do?" \
-        TRUE  "Fresh Install — download and install latest release" \
-        FALSE "Local Build  — install from ./build directory" \
-        FALSE "Update       — check for and install updates" \
-        FALSE "Uninstall    — remove $APP_DISPLAY_NAME from this system" \
+        TRUE  "fresh"     "Fresh Install — download and install latest release" \
+        FALSE "local"     "Local Build  — install from ./build directory" \
+        FALSE "update"    "Update       — check for and install updates" \
+        FALSE "uninstall" "Uninstall    — remove $APP_DISPLAY_NAME from this system" \
     ) || exit 0
 
     case "$choice" in
