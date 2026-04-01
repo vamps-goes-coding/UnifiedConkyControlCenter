@@ -94,7 +94,9 @@ install(FILES resources/conky-control-center.desktop DESTINATION ${CMAKE_INSTALL
 install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps RENAME UnifiedConkyControlCenter.png)
 
 # 7. CPack Configuration [cite: 6] - Supports DEB, RPM, and TGZ
-set(CPACK_PACKAGE_NAME "unified-conky-control-center")
+set(CPACK_PACKAGE_NAME "UnifiedConkyControlCenter")
+set(CPACK_DEBIAN_PACKAGE_NAME "unified-conky-control-center")
+set(CPACK_RPM_PACKAGE_NAME "unified-conky-control-center")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Unified Conky Control Center")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A unified control center for managing Conky configurations across X11 and Wayland")
