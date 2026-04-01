@@ -236,7 +236,21 @@ gui_menu() {
     local title="$1" msg="$2"
     shift 2
     case "$GUI_TOOLKIT" in
-        kdialog) kdialog --title "$title" --radiolist "$msg" "$@" ;;
+        kdialog)
+            # Convert zenity format (TRUE/FALSE tag item ...) to kdialog format (tag item on/off ...)
+            local -a kdialog_args=()
+            local first=true
+            while [ $# -gt 0 ]; do
+                local state="$1" tag="$2" item="$3"
+                shift 3
+                if [ "$state" = "TRUE" ]; then
+                    kdialog_args+=("$tag" "$item" "on")
+                else
+                    kdialog_args+=("$tag" "$item" "off")
+                fi
+            done
+            kdialog --title "$title" --radiolist "$msg" "${kdialog_args[@]}"
+            ;;
         zenity)  zenity --list --title="$title" --text="$msg" \
                      --radiolist --column="" --column="Option" "$@" ;;
         yad)     yad --list --title="$title" --text="$msg" \
@@ -330,15 +344,23 @@ ASKPASS_EOF
             SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
             rm -f "$askpass_script"
         elif command -v kdialog &>/dev/null; then
-            # Create a temporary askpass script using kdialog
-            local askpass_script=$(mktemp)
-            cat > "$askpass_script" << 'ASKPASS_EOF'
+            # On Wayland, kdialog askpass may not work — use sudo -S with kdialog password input
+            if [ "$DISPLAY_SERVER" = "wayland" ]; then
+                local passwd
+                passwd=$(kdialog --password "Enter sudo password:" --title "Sudo Password Required") || \
+                    fatal "Password entry cancelled"
+                echo "$passwd" | sudo -S true 2>/dev/null || fatal "Failed to obtain sudo privileges"
+            else
+                # X11: use askpass script
+                local askpass_script=$(mktemp)
+                cat > "$askpass_script" << 'ASKPASS_EOF'
 #!/bin/bash
 kdialog --password "Enter sudo password:"
 ASKPASS_EOF
-            chmod +x "$askpass_script"
-            SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
-            rm -f "$askpass_script"
+                chmod +x "$askpass_script"
+                SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
+                rm -f "$askpass_script"
+            fi
         else
             # No askpass helper available, try with explicit TTY allocation
             sudo -v || fatal "Failed to obtain sudo privileges"
@@ -546,7 +568,48 @@ install_tgz() {
 }
 
 install_local_build() {
-    [ -d "./build" ] || fatal "Build directory not found. Run 'cmake -B build && cmake --build build' first."
+    # Auto-build if build directory doesn't exist
+    if [ ! -d "./build" ]; then
+        log "Build directory not found — running cmake build automatically"
+        info "Build directory not found — running cmake build automatically..."
+        
+        # Check for cmake
+        if ! command -v cmake &>/dev/null; then
+            fatal "cmake not found. Please install cmake first."
+        fi
+        
+        # Check for build-essential/base-devel
+        case "$INSTALLER_TYPE" in
+            deb)
+                if ! dpkg -l | grep -q build-essential 2>/dev/null; then
+                    info "Installing build-essential..."
+                    sudo apt-get install -y build-essential >> "$LOG_FILE" 2>&1 || true
+                fi
+                ;;
+            arch)
+                if ! pacman -Q base-devel &>/dev/null; then
+                    info "Installing base-devel..."
+                    sudo pacman -S --noconfirm --needed base-devel >> "$LOG_FILE" 2>&1 || true
+                fi
+                ;;
+            rpm_dnf)
+                if ! rpm -q gcc-c++ &>/dev/null; then
+                    info "Installing development tools..."
+                    sudo dnf groupinstall -y "Development Tools" >> "$LOG_FILE" 2>&1 || true
+                fi
+                ;;
+        esac
+        
+        # Configure and build
+        info "Running cmake -B build..."
+        cmake -B build -DCMAKE_BUILD_TYPE=Release >> "$LOG_FILE" 2>&1 || \
+            fatal "cmake configure failed — check $LOG_FILE"
+        
+        info "Running cmake --build build..."
+        cmake --build build -j"$(nproc)" >> "$LOG_FILE" 2>&1 || \
+            fatal "cmake build failed — check $LOG_FILE"
+    fi
+    
     log "Installing from local build"
     cd build
     sudo cmake --install . --prefix "$INSTALL_PREFIX" >> "$LOG_FILE" 2>&1 || \
