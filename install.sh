@@ -511,7 +511,7 @@ get_package_name() {
     case "$INSTALLER_TYPE" in
         deb)         echo "unified-conky-control-center_${ver}_amd64.deb" ;;
         rpm_dnf|rpm_zypper) echo "unified-conky-control-center-${ver}-1.x86_64.rpm" ;;
-        arch|tgz)    echo "unified-conky-control-center-${ver}-Linux_x86_64.tar.gz" ;;
+        arch|tgz)    echo "UnifiedConkyControlCenter-${ver}-Linux_x86_64.tar.gz" ;;
     esac
 }
 
