@@ -15,7 +15,7 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.0.13"
+VERSION="v1.0.14"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
