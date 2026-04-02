@@ -57,6 +57,7 @@ namespace fs = std::filesystem;
 #include <QInputDialog>
 #include <QPainter>
 #include <fstream>
+#include <iostream>
 
 // Custom QMainWindow subclass to handle cleanup on close
 class ConkyControlCenterWindow : public QMainWindow {
@@ -81,7 +82,9 @@ QSystemTrayIcon* UIManager::tray_icon_instance = nullptr;
 // Application lifecycle
 int UIManager::initialize_application(int argc, char* argv[]) {
     if (!app_instance) {
-        app_instance = new QApplication(argc, argv);
+        static int static_argc = argc;
+        static char** static_argv = argv;
+        app_instance = new QApplication(static_argc, static_argv);
         
         // Set application metadata
         app_instance->setApplicationName(QString::fromUtf8(AppInfo::kInternalName()));
@@ -120,12 +123,17 @@ std::string get_current_conky_theme() {
 }
 
 void UIManager::run_application() {
+    std::cerr << "DEBUG: run_application called, app_instance=" << app_instance << std::endl;
     if (app_instance) {
-        // Verify panel state before creating the window
+        std::cerr << "DEBUG: Calling verify_panel_state_on_startup" << std::endl;
         ConkyManager::verify_panel_state_on_startup();
+        std::cerr << "DEBUG: verify done, calling create_main_window" << std::endl;
         
-        create_main_window();
-        show_main_window();
+std::cerr << "DEBUG: Calling create_main_window" << std::endl;
+create_main_window();
+std::cerr << "DEBUG: create_main_window done, instance=" << main_window_instance << std::endl;
+show_main_window();
+std::cerr << "DEBUG: show_main_window done" << std::endl;
         
         // Update status bar with current Conky theme
         if (main_window_instance) {
@@ -1381,17 +1389,21 @@ QWidget* UIManager::create_theme_tab(QWidget* parent) {
         
         try {
             std::string category = cat_list->currentItem()->text().toStdString();
-            if (ThemeManager::apply_theme_to_panel(theme.toStdString(), category, panel.toStdString())) {
-                show_tray_message("Theme Applied", QString("Applied %1 to %2").arg(theme, panel).toStdString());
-                
-                // Update status bar theme label
-                QLabel* theme_label = main_window_instance->findChild<QLabel*>("statusBarThemeLabel");
-                if (theme_label) {
-                    theme_label->setText(QString("Theme: %1").arg(theme));
-                }
-                
-                // Stop the panel first
-                ConkyManager::stop_panel(panel.toStdString());
+if (ThemeManager::apply_theme_to_panel(theme.toStdString(), category, panel.toStdString())) {
+    show_tray_message("Theme Applied", QString("Applied %1 to %2").arg(theme, panel).toStdString());
+
+    // Update status bar theme label
+    QLabel* theme_label = main_window_instance->findChild<QLabel*>("statusBarThemeLabel");
+    if (theme_label) {
+        theme_label->setText(QString("Theme: %1").arg(theme));
+    }
+
+    // --- THE CRITICAL ADDITION ---
+    Utils::signal_all_conky_instances();
+    // -----------------------------
+
+    // Stop the panel first
+    ConkyManager::stop_panel(panel.toStdString());
                 
                 // Wait for panel to fully stop before restarting (increased timeout for reliability)
                 QTimer::singleShot(1500, [panel]() {
@@ -1453,17 +1465,21 @@ QWidget* UIManager::create_theme_tab(QWidget* parent) {
         }
         
                 std::string category = cat_list->currentItem()->text().toStdString();
-                if (ThemeManager::apply_global_theme(theme.toStdString(), category)) {
-                    show_tray_message("Theme Applied Globally", "Theme applied to all running panels.");
-                    
-                    // Update status bar theme label
-                    QLabel* theme_label = main_window_instance->findChild<QLabel*>("statusBarThemeLabel");
-                    if (theme_label) {
-                        theme_label->setText(QString("Theme: %1").arg(theme));
-                    }
-                    
-                    ConkyManager::restart_active_panels();
-                }
+if (ThemeManager::apply_global_theme(theme.toStdString(), category)) {
+    show_tray_message("Theme Applied Globally", "Theme applied to all running panels.");
+
+    // Update status bar theme label
+    QLabel* theme_label = main_window_instance->findChild<QLabel*>("statusBarThemeLabel");
+    if (theme_label) {
+        theme_label->setText(QString("Theme: %1").arg(theme));
+    }
+
+    // --- THE CRITICAL ADDITION ---
+    Utils::signal_all_conky_instances();
+    // -----------------------------
+
+    ConkyManager::restart_active_panels();
+}
     });
     
     QObject::connect(refresh_btn, &QPushButton::clicked, [cat_list, theme_list, panel_selector]() {
