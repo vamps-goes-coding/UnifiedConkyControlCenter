@@ -6,6 +6,9 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <limits.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <dirent.h>
 
 // No hardcoded home paths here
 
@@ -257,3 +260,29 @@ const fs::path Utils::HOME = []() {
     const char* home = getenv("HOME");
     return home ? fs::path(home) : fs::path("");
 }();
+
+// New function to signal all Conky instances
+void Utils::signal_all_conky_instances() {
+    DIR* dir = opendir("/proc");
+    if (!dir) return;
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        // Check if directory name is a number (a PID)
+        if (entry->d_type == DT_DIR && isdigit(entry->d_name[0])) {
+            std::string pid_str = entry->d_name;
+            std::string cmd_path = "/proc/" + pid_str + "/comm";
+            std::ifstream comm_file(cmd_path);
+            std::string comm;
+            
+            if (getline(comm_file, comm)) {
+                if (comm.find("conky") != std::string::npos) {
+                    pid_t pid = std::stoi(pid_str);
+                    // Send SIGUSR1 (Reload Config)
+                    kill(pid, SIGUSR1);
+                }
+            }
+        }
+    }
+    closedir(dir);
+}

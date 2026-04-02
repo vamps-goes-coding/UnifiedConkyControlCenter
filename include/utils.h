@@ -58,6 +58,9 @@ public:
     std::vector<std::string> listFiles(const std::string& directoryPath);
     bool createDirectory(const std::string& directoryPath);
     
+    // New function to signal all Conky instances
+    static void signal_all_conky_instances();
+    
 private:
     static fs::path get_executable_directory();
 };
