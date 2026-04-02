@@ -11,7 +11,8 @@ Logger& Logger::instance() {
 }
 
 bool Logger::initialize(const fs::path& log_dir) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    try {
+        std::lock_guard<std::mutex> lock(mutex_);
     
     if (initialized_) {
         return true;
@@ -63,10 +64,17 @@ bool Logger::initialize(const fs::path& log_dir) {
     initialized_ = true;
     
     // Log initialization
-    info("Logging system initialized", "Logger");
-    info("Log file: " + log_file_path_.string(), "Logger");
+    write_log(LogLevel::INFO, "Logging system initialized", "Logger");
+    write_log(LogLevel::INFO, "Log file: " + log_file_path_.string(), "Logger");
     
     return true;
+    } catch (const std::exception& e) {
+        std::cerr << "LOGGER CRASH: " << e.what() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "LOGGER CRASH: unknown exception" << std::endl;
+        return false;
+    }
 }
 
 void Logger::debug(const std::string& message, const std::string& component) {
