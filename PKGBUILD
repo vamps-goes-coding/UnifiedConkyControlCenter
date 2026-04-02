@@ -17,18 +17,18 @@ prepare() {
 }
 
 package() {
-    cd "${srcdir}/UnifiedConkyControlCenter-${pkgver}-Linux-x86_64"
+    local src="${srcdir}/UnifiedConkyControlCenter-${pkgver}-Linux-x86_64"
 
-    # Install binary
-    install -Dm755 "usr/local/bin/UnifiedConkyControlCenter" "${pkgdir}/usr/bin/UnifiedConkyControlCenter"
+    install -Dm755 "$src/bin/UnifiedConkyControlCenter" "${pkgdir}/usr/bin/UnifiedConkyControlCenter"
 
-    # Install desktop file
-    if [ -f "usr/local/share/applications/unified-conky-control-center.desktop" ]; then
-        install -Dm644 "usr/local/share/applications/unified-conky-control-center.desktop" "${pkgdir}/usr/share/applications/unified-conky-control-center.desktop"
-    fi
+    [ -f "$src/share/applications/conky-control-center.desktop" ] && \
+        install -Dm644 "$src/share/applications/conky-control-center.desktop" \
+            "${pkgdir}/usr/share/applications/conky-control-center.desktop"
 
-    # Install config files
-    if [ -d "usr/local/share/UnifiedConkyControlCenter" ]; then
-        cp -r "usr/local/share/UnifiedConkyControlCenter" "${pkgdir}/usr/share/"
-    fi
+    [ -d "$src/share/UnifiedConkyControlCenter" ] && \
+        cp -r "$src/share/UnifiedConkyControlCenter" "${pkgdir}/usr/share/"
+
+    [ -f "$src/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" ] && \
+        install -Dm644 "$src/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" \
+            "${pkgdir}/usr/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png"
 }

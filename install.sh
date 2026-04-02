@@ -563,20 +563,19 @@ prepare() {
 
 package() {
     local src="\${srcdir}/UnifiedConkyControlCenter-${VERSION_NUM}-Linux-x86_64"
-    [ -d "\$src" ] || src="\${srcdir}"
 
-    install -Dm755 "\$src/usr/local/bin/${APP_NAME}" "\${pkgdir}/usr/bin/${APP_NAME}"
+    install -Dm755 "\$src/bin/UnifiedConkyControlCenter" "\${pkgdir}/usr/bin/UnifiedConkyControlCenter"
 
-    [ -f "\$src/usr/local/share/applications/unified-conky-control-center.desktop" ] && \
-        install -Dm644 "\$src/usr/local/share/applications/unified-conky-control-center.desktop" \
-            "\${pkgdir}/usr/share/applications/unified-conky-control-center.desktop"
+    [ -f "\$src/share/applications/conky-control-center.desktop" ] && \
+        install -Dm644 "\$src/share/applications/conky-control-center.desktop" \
+            "\${pkgdir}/usr/share/applications/conky-control-center.desktop"
 
-    [ -d "\$src/usr/local/share/${APP_NAME}" ] && \
-        cp -r "\$src/usr/local/share/${APP_NAME}" "\${pkgdir}/usr/share/"
+    [ -d "\$src/share/UnifiedConkyControlCenter" ] && \
+        cp -r "\$src/share/UnifiedConkyControlCenter" "\${pkgdir}/usr/share/"
 
-    [ -f "\$src/usr/local/share/icons/hicolor/256x256/apps/${APP_NAME}.png" ] && \
-        install -Dm644 "\$src/usr/local/share/icons/hicolor/256x256/apps/${APP_NAME}.png" \
-            "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/${APP_NAME}.png"
+    [ -f "\$src/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" ] && \
+        install -Dm644 "\$src/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" \
+            "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png"
 }
 PKGEOF
 
