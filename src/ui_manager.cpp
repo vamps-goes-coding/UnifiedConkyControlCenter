@@ -82,10 +82,16 @@ QSystemTrayIcon* UIManager::tray_icon_instance = nullptr;
 int UIManager::initialize_application(int argc, char* argv[]) {
     if (!app_instance) {
         app_instance = new QApplication(argc, argv);
+        
+        // Set application metadata
         app_instance->setApplicationName(QString::fromUtf8(AppInfo::kInternalName()));
         app_instance->setApplicationDisplayName(QString::fromUtf8(AppInfo::kDisplayName()));
         app_instance->setApplicationVersion(QString::fromUtf8(AppInfo::kVersion()));
         app_instance->setOrganizationName(QString::fromUtf8(AppInfo::kOrganization()));
+        
+        // Set essential attributes for modern Qt6 behavior
+        app_instance->setAttribute(Qt::AA_EnableHighDpiScaling, true);
+        app_instance->setAttribute(Qt::AA_UseHighDpiPixmaps, true);
         
         // Set application icon
         QIcon app_icon(":/icons/conky-unified-center-icon.png");
@@ -400,7 +406,22 @@ void UIManager::setup_main_window(QWidget* window) {
 
 void UIManager::show_main_window() {
     if (main_window_instance) {
+        // Ensure window is visible and brought to front
         main_window_instance->show();
+        main_window_instance->raise();
+        main_window_instance->activateWindow();
+        
+        // On Wayland, additional handling may be needed
+        // Force the window to be on top and focused
+        main_window_instance->setWindowState(main_window_instance->windowState() & ~Qt::WindowMinimized);
+        main_window_instance->setWindowState(main_window_instance->windowState() | Qt::WindowActive);
+        
+        // Ensure window is visible
+        if (!main_window_instance->isVisible()) {
+            main_window_instance->setVisible(true);
+        }
+        
+        // Bring to front explicitly
         main_window_instance->raise();
         main_window_instance->activateWindow();
     }
