@@ -583,7 +583,7 @@ PKGEOF
     cp "$tgz" "$tmp/"
 
     cd "$tmp"
-    makepkg -si --noconfirm >> "$LOG_FILE" 2>&1 || fatal "Failed to build/install Arch package"
+    makepkg -si --noconfirm --force >> "$LOG_FILE" 2>&1 || fatal "Failed to build/install Arch package"
     cd /
     rm -rf "$tmp"
 }
