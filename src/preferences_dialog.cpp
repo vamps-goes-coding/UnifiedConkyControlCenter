@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QHeaderView>
 
 PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
