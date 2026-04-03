@@ -190,30 +190,6 @@ fs::path ConfigManager::find_config_file() const {
     return fs::path();
 }
 
-AppConfig& ConfigManager::get_app_config() {
-    return app_config_;
-}
-
-UIConfig& ConfigManager::get_ui_config() {
-    return ui_config_;
-}
-
-std::vector<EditorInfo>& ConfigManager::get_editors() {
-    return editors_;
-}
-
-std::string ConfigManager::get_config_prefix() const {
-    return panel_discovery_config_.config_prefix;
-}
-
-std::string ConfigManager::get_config_extension() const {
-    return panel_discovery_config_.config_extension;
-}
-
-std::vector<std::string> ConfigManager::get_excluded_files() const {
-    return panel_discovery_config_.excluded_files;
-}
-
 void ConfigManager::set_defaults() {
     // All defaults are already set in the struct definitions
     app_themes_ = {"Default Light", "Dark Charcoal", "Dracula", "Nord", "Solarized Light", "Oceanic"};

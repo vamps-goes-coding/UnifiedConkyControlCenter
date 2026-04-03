@@ -73,7 +73,7 @@ void PreferencesDialog::setupUI() {
     panelsLayout->addLayout(pButtons);
 
     connect(addPanel, &QPushButton::clicked, [this]() {
-        QString name = UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):").c_str();
+        QString name = QString::fromStdString(UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):"));
         if (!name.isEmpty()) panelsList->addItem(name);
     });
     connect(remPanel, &QPushButton::clicked, [this]() {
@@ -140,7 +140,7 @@ void PreferencesDialog::loadCurrentConfig() {
     
     conkyPathEdit->setText(QString::fromStdString(config.get_conky_wayland_directory().string()));
     themesPathEdit->setText(QString::fromStdString(config.get_themes_directory().string()));
-    appNameEdit->setText(QString::fromStdString(config.get_app_config().display_name));
+    appNameEdit->setText(QString::fromStdString(config.get_application_config().display_name));
 
     for (const auto& panel : config.get_ui_config().default_panels_to_start) {
         panelsList->addItem(QString::fromStdString(panel));
@@ -163,7 +163,7 @@ void PreferencesDialog::saveAndAccept() {
     config.set_themes_path(themesPathEdit->text().toStdString());
     
     // Update App Info
-    config.get_app_config().display_name = appNameEdit->text().toStdString();
+    config.get_application_config().display_name = appNameEdit->text().toStdString();
     
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();
