@@ -71,7 +71,7 @@ void PreferencesDialog::setupUI() {
     panelsLayout->addLayout(pButtons);
 
     connect(addPanel, &QPushButton::clicked, [this]() {
-        QString name = UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):").c_str();
+        QString name = QString::fromStdString(UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):"));
         if (!name.isEmpty()) panelsList->addItem(name);
     });
     connect(remPanel, &QPushButton::clicked, [this]() {
