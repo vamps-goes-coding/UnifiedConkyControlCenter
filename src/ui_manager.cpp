@@ -350,9 +350,12 @@ QWidget* UIManager::create_main_window() {
     refresh_layout->addWidget(refresh_icon);
     refresh_layout->addWidget(refresh_label);
     
-    // Version indicator (Visible at all times)
+    // Version indicator (Visible at all times - high contrast)
+    QLabel* version_icon = new QLabel("ℹ");
+    version_icon->setStyleSheet("font-size: 14px; color: #58a6ff; background: transparent; border: none;");
     QLabel* version_label = new QLabel(QString("v%1").arg(QString::fromUtf8(AppInfo::kVersion())));
-    version_label->setStyleSheet("color: #8b949e; font-size: 11px; padding-left: 10px; border: none; background: transparent;");
+    version_label->setObjectName("statusBarVersionLabel");
+    version_label->setStyleSheet("color: #58a6ff; font-size: 12px; font-weight: bold; background: transparent; border: none;");
     version_label->setToolTip("Application Version");
 
     // Spacer
@@ -403,6 +406,8 @@ QWidget* UIManager::create_main_window() {
     status_layout->addLayout(theme_layout);
     status_layout->addWidget(sep2);
     status_layout->addLayout(refresh_layout);
+    status_layout->addWidget(sep2);
+    status_layout->addWidget(version_icon);
     status_layout->addWidget(version_label);
     status_layout->addWidget(spacer);
     status_layout->addWidget(start_running_btn);

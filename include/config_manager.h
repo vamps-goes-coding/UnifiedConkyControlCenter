@@ -75,9 +75,11 @@ public:
     ApplicationConfig& get_application_config() { return app_config_; }
     const PathsConfig& get_paths_config() const { return paths_config_; }
     const PanelDiscoveryConfig& get_panel_discovery_config() const { return panel_discovery_config_; }
+    PanelDiscoveryConfig& get_panel_discovery_config() { return panel_discovery_config_; }
     const UIConfig& get_ui_config() const { return ui_config_; }
     UIConfig& get_ui_config() { return ui_config_; }
     const ThemesConfig& get_themes_config() const { return themes_config_; }
+    ThemesConfig& get_themes_config() { return themes_config_; }
     const std::vector<std::string>& get_app_themes() const { return app_themes_; }
     const std::vector<EditorInfo>& get_editors() const { return editors_; }
     std::vector<EditorInfo>& get_editors() { return editors_; }

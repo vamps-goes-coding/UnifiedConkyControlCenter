@@ -5,10 +5,14 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QTableWidget>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QPlainTextEdit>
 
 /**
  * @brief Dialog for managing application-wide preferences including paths,
- * default panels, and editor configurations.
+ * default panels, editor configurations, panel discovery, refresh intervals,
+ * display server, and window settings.
  */
 class PreferencesDialog : public QDialog {
     Q_OBJECT
@@ -35,6 +39,26 @@ private:
 
     // General settings
     QLineEdit* appNameEdit;
+
+    // Panel Discovery settings
+    QLineEdit* configPrefixEdit;
+    QLineEdit* configExtensionEdit;
+    QPlainTextEdit* excludedFilesEdit;
+
+    // Refresh & Window settings
+    QSpinBox* heartbeatSpin;
+    QSpinBox* panelStatusSpin;
+    QSpinBox* minWidthSpin;
+    QSpinBox* minHeightSpin;
+    QSpinBox* defaultWidthSpin;
+    QSpinBox* defaultHeightSpin;
+
+    // Display Server settings
+    QComboBox* displayServerCombo;
+
+    // Theme settings
+    QLineEdit* themeExtensionEdit;
+    QLineEdit* currentThemeFileEdit;
 };
 
 #endif // PREFERENCES_DIALOG_H
