@@ -13,6 +13,8 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QHeaderView>
+#include <vector>
+#include <string>
 
 PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Preferences");
@@ -71,7 +73,7 @@ void PreferencesDialog::setupUI() {
     panelsLayout->addLayout(pButtons);
 
     connect(addPanel, &QPushButton::clicked, [this]() {
-        QString name = QString::fromStdString(UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):"));
+        QString name = UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):").c_str();
         if (!name.isEmpty()) panelsList->addItem(name);
     });
     connect(remPanel, &QPushButton::clicked, [this]() {
@@ -172,11 +174,17 @@ void PreferencesDialog::saveAndAccept() {
     // Update Editors
     config.get_editors().clear();
     for(int i = 0; i < editorsTable->rowCount(); ++i) {
-        config.get_editors().push_back({
-            editorsTable->item(i, 0)->text().toStdString(),
-            editorsTable->item(i, 1)->text().toStdString(),
-            editorsTable->item(i, 2)->text().toStdString()
-        });
+        auto* item0 = editorsTable->item(i, 0);
+        auto* item1 = editorsTable->item(i, 1);
+        auto* item2 = editorsTable->item(i, 2);
+
+        if (item0 && item1 && item2) {
+            config.get_editors().push_back({
+                item0->text().toStdString(),
+                item1->text().toStdString(),
+                item2->text().toStdString()
+            });
+        }
     }
 
     if (config.save_config()) {
