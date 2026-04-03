@@ -5,6 +5,7 @@
 #include "config_parser.h"
 #include "theme_manager.h"
 #include "in_app_editor.h"
+#include "preferences_dialog.h"
 #include <filesystem>
 #include <cstdlib>
 #include <stdexcept>
@@ -228,6 +229,13 @@ QWidget* UIManager::create_main_window() {
     // Create menu bar
     QMenuBar* menu_bar = new QMenuBar();
     QMenu* file_menu = menu_bar->addMenu("&File");
+    file_menu->addAction("&Preferences...", [window]() {
+        PreferencesDialog dialog(window);
+        if (dialog.exec() == QDialog::Accepted) {
+            refresh_all_tabs();
+        }
+    });
+    file_menu->addSeparator();
     file_menu->addAction("&Restart App", []() {
         QString executable = QApplication::applicationFilePath();
         QStringList arguments = QApplication::arguments();
@@ -342,6 +350,11 @@ QWidget* UIManager::create_main_window() {
     refresh_layout->addWidget(refresh_icon);
     refresh_layout->addWidget(refresh_label);
     
+    // Version indicator (Visible at all times)
+    QLabel* version_label = new QLabel(QString("v%1").arg(QString::fromUtf8(AppInfo::kVersion())));
+    version_label->setStyleSheet("color: #8b949e; font-size: 11px; padding-left: 10px; border: none; background: transparent;");
+    version_label->setToolTip("Application Version");
+
     // Spacer
     QWidget* spacer = new QWidget();
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -368,12 +381,8 @@ QWidget* UIManager::create_main_window() {
     );
     start_running_btn->setToolTip("Start all main panels");
     QObject::connect(start_running_btn, &QPushButton::clicked, []() {
-        // List of panels to start (using correct names from conky-wayland folder)
-        std::vector<std::string> panels_to_start = {
-            "all-media", "basic-info", "calendar", "cpu-mem-swap",
-            "lan-network", "network-wan", "preview", "processes",
-            "storage", "timezones", "weather", "wifi-network", "zashien"
-        };
+        // Use dynamic list from config instead of hardcoded values
+        auto panels_to_start = ConfigManager::instance().get_ui_config().default_panels_to_start;
         
         // Start each panel
         for (const auto& panel : panels_to_start) {
@@ -394,6 +403,7 @@ QWidget* UIManager::create_main_window() {
     status_layout->addLayout(theme_layout);
     status_layout->addWidget(sep2);
     status_layout->addLayout(refresh_layout);
+    status_layout->addWidget(version_label);
     status_layout->addWidget(spacer);
     status_layout->addWidget(start_running_btn);
     

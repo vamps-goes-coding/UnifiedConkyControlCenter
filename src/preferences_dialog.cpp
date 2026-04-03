@@ -1,365 +1,186 @@
 #include "preferences_dialog.h"
 #include "config_manager.h"
-#include "logger.h"
-#include "display_server.h"
-
+#include "ui_manager.h"
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QTabWidget>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QLabel>
 #include <QFileDialog>
+#include <QListWidget>
 #include <QMessageBox>
-#include <QSettings>
-#include <QApplication>
+#include <QTableWidget>
+#include <QHeaderView>
 
-PreferencesDialog::PreferencesDialog(QWidget* parent)
-    : QDialog(parent)
-{
-    setup_ui();
-    load_preferences();
-}
-
-void PreferencesDialog::show_preferences(QWidget* parent) {
-    PreferencesDialog dialog(parent);
-    dialog.exec();
-}
-
-void PreferencesDialog::setup_ui() {
+PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Preferences");
-    setMinimumWidth(600);
-    setMinimumHeight(500);
-    
-    QVBoxLayout* main_layout = new QVBoxLayout(this);
-    
-    // Tab widget
-    QTabWidget* tab_widget = new QTabWidget();
-    
-    // General tab
-    QWidget* general_tab = new QWidget();
-    QVBoxLayout* general_layout = new QVBoxLayout(general_tab);
-    
-    QGroupBox* startup_group = new QGroupBox("Startup");
-    QVBoxLayout* startup_layout = new QVBoxLayout(startup_group);
-    auto_start_checkbox_ = new QCheckBox("Start automatically on system login");
-    minimize_to_tray_checkbox_ = new QCheckBox("Minimize to system tray on close");
-    show_notifications_checkbox_ = new QCheckBox("Show system notifications");
-    startup_layout->addWidget(auto_start_checkbox_);
-    startup_layout->addWidget(minimize_to_tray_checkbox_);
-    startup_layout->addWidget(show_notifications_checkbox_);
-    general_layout->addWidget(startup_group);
-    
-    QGroupBox* display_group = new QGroupBox("Display Server");
-    QVBoxLayout* display_layout = new QVBoxLayout(display_group);
-    display_layout->addWidget(new QLabel("Display server (requires restart):"));
-    display_server_combo_ = new QComboBox();
-    display_server_combo_->addItem("Auto-detect", "auto");
-    display_server_combo_->addItem("X11", "x11");
-    display_server_combo_->addItem("Wayland", "wayland");
-    display_layout->addWidget(display_server_combo_);
-    general_layout->addWidget(display_group);
-    
-    general_layout->addStretch();
-    tab_widget->addTab(general_tab, "General");
-    
-    // Editor tab
-    QWidget* editor_tab = new QWidget();
-    QVBoxLayout* editor_layout = new QVBoxLayout(editor_tab);
-    
-    QGroupBox* font_group = new QGroupBox("Font");
-    QGridLayout* font_layout = new QGridLayout(font_group);
-    font_layout->addWidget(new QLabel("Font family:"), 0, 0);
-    font_family_combo_ = new QFontComboBox();
-    font_layout->addWidget(font_family_combo_, 0, 1);
-    font_layout->addWidget(new QLabel("Font size:"), 1, 0);
-    font_size_spin_ = new QSpinBox();
-    font_size_spin_->setRange(8, 24);
-    font_size_spin_->setValue(10);
-    font_layout->addWidget(font_size_spin_, 1, 1);
-    editor_layout->addWidget(font_group);
-    
-    QGroupBox* editor_options_group = new QGroupBox("Editor Options");
-    QVBoxLayout* editor_options_layout = new QVBoxLayout(editor_options_group);
-    tab_size_spin_ = new QSpinBox();
-    tab_size_spin_->setRange(2, 8);
-    tab_size_spin_->setValue(4);
-    editor_options_layout->addWidget(new QLabel("Tab size:"));
-    editor_options_layout->addWidget(tab_size_spin_);
-    word_wrap_checkbox_ = new QCheckBox("Enable word wrap");
-    auto_indent_checkbox_ = new QCheckBox("Enable auto-indent");
-    line_numbers_checkbox_ = new QCheckBox("Show line numbers");
-    editor_options_layout->addWidget(word_wrap_checkbox_);
-    editor_options_layout->addWidget(auto_indent_checkbox_);
-    editor_options_layout->addWidget(line_numbers_checkbox_);
-    editor_layout->addWidget(editor_options_group);
-    
-    editor_layout->addStretch();
-    tab_widget->addTab(editor_tab, "Editor");
-    
-    // Logging tab
-    QWidget* logging_tab = new QWidget();
-    QVBoxLayout* logging_layout = new QVBoxLayout(logging_tab);
-    
-    QGroupBox* log_settings_group = new QGroupBox("Log Settings");
-    QVBoxLayout* log_settings_layout = new QVBoxLayout(log_settings_group);
-    log_settings_layout->addWidget(new QLabel("Log level:"));
-    log_level_combo_ = new QComboBox();
-    log_level_combo_->addItem("Debug", "DEBUG");
-    log_level_combo_->addItem("Info", "INFO");
-    log_level_combo_->addItem("Warning", "WARNING");
-    log_level_combo_->addItem("Error", "ERROR");
-    log_level_combo_->addItem("Critical", "CRITICAL");
-    log_level_combo_->setCurrentIndex(1);  // Info
-    log_settings_layout->addWidget(log_level_combo_);
-    log_to_file_checkbox_ = new QCheckBox("Log to file");
-    log_to_file_checkbox_->setChecked(true);
-    log_settings_layout->addWidget(log_to_file_checkbox_);
-    logging_layout->addWidget(log_settings_group);
-    
-    QGroupBox* log_folder_group = new QGroupBox("Log Folder");
-    QHBoxLayout* log_folder_layout = new QHBoxLayout(log_folder_group);
-    log_folder_edit_ = new QLineEdit();
-    log_folder_edit_->setReadOnly(true);
-    log_folder_layout->addWidget(log_folder_edit_);
-    QPushButton* browse_log_btn = new QPushButton("Browse...");
-    connect(browse_log_btn, &QPushButton::clicked, this, &PreferencesDialog::browse_log_folder);
-    log_folder_layout->addWidget(browse_log_btn);
-    logging_layout->addWidget(log_folder_group);
-    
-    QGroupBox* retention_group = new QGroupBox("Log Retention");
-    QVBoxLayout* retention_layout = new QVBoxLayout(retention_group);
-    retention_layout->addWidget(new QLabel("Keep logs for (days):"));
-    log_retention_spin_ = new QSpinBox();
-    log_retention_spin_->setRange(1, 365);
-    log_retention_spin_->setValue(30);
-    retention_layout->addWidget(log_retention_spin_);
-    logging_layout->addWidget(retention_group);
-    
-    logging_layout->addStretch();
-    tab_widget->addTab(logging_tab, "Logging");
-    
-    // UI tab
-    QWidget* ui_tab = new QWidget();
-    QVBoxLayout* ui_layout = new QVBoxLayout(ui_tab);
-    
-    QGroupBox* appearance_group = new QGroupBox("Appearance");
-    QVBoxLayout* appearance_layout = new QVBoxLayout(appearance_group);
-    appearance_layout->addWidget(new QLabel("Application theme:"));
-    app_theme_combo_ = new QComboBox();
-    app_theme_combo_->addItems({"Default Light", "Dark Charcoal", "Dracula", "Nord", "Solarized Light", "Oceanic"});
-    appearance_layout->addWidget(app_theme_combo_);
-    ui_layout->addWidget(appearance_group);
-    
-    QGroupBox* interface_group = new QGroupBox("Interface");
-    QVBoxLayout* interface_layout = new QVBoxLayout(interface_group);
-    show_toolbar_checkbox_ = new QCheckBox("Show toolbar");
-    show_toolbar_checkbox_->setChecked(true);
-    show_statusbar_checkbox_ = new QCheckBox("Show status bar");
-    show_statusbar_checkbox_->setChecked(true);
-    interface_layout->addWidget(show_toolbar_checkbox_);
-    interface_layout->addWidget(show_statusbar_checkbox_);
-    ui_layout->addWidget(interface_group);
-    
-    QGroupBox* refresh_group = new QGroupBox("Refresh");
-    QVBoxLayout* refresh_layout = new QVBoxLayout(refresh_group);
-    refresh_layout->addWidget(new QLabel("Panel status refresh interval (seconds):"));
-    refresh_interval_spin_ = new QSpinBox();
-    refresh_interval_spin_->setRange(1, 60);
-    refresh_interval_spin_->setValue(5);
-    refresh_layout->addWidget(refresh_interval_spin_);
-    ui_layout->addWidget(refresh_group);
-    
-    ui_layout->addStretch();
-    tab_widget->addTab(ui_tab, "UI");
-    
-    // Paths tab
-    QWidget* paths_tab = new QWidget();
-    QVBoxLayout* paths_layout = new QVBoxLayout(paths_tab);
-    
-    QGroupBox* conky_paths_group = new QGroupBox("Conky Paths");
-    QVBoxLayout* conky_paths_layout = new QVBoxLayout(conky_paths_group);
-    
-    conky_paths_layout->addWidget(new QLabel("Conky configuration folder:"));
-    QHBoxLayout* conky_config_layout = new QHBoxLayout();
-    conky_config_edit_ = new QLineEdit();
-    conky_config_edit_->setReadOnly(true);
-    conky_config_layout->addWidget(conky_config_edit_);
-    QPushButton* browse_conky_config_btn = new QPushButton("Browse...");
-    connect(browse_conky_config_btn, &QPushButton::clicked, this, &PreferencesDialog::browse_conky_config_folder);
-    conky_config_layout->addWidget(browse_conky_config_btn);
-    conky_paths_layout->addLayout(conky_config_layout);
-    
-    conky_paths_layout->addWidget(new QLabel("Themes folder:"));
-    QHBoxLayout* themes_layout = new QHBoxLayout();
-    themes_folder_edit_ = new QLineEdit();
-    themes_folder_edit_->setReadOnly(true);
-    themes_layout->addWidget(themes_folder_edit_);
-    QPushButton* browse_themes_btn = new QPushButton("Browse...");
-    connect(browse_themes_btn, &QPushButton::clicked, this, &PreferencesDialog::browse_themes_folder);
-    themes_layout->addWidget(browse_themes_btn);
-    conky_paths_layout->addLayout(themes_layout);
-    
-    paths_layout->addWidget(conky_paths_group);
-    
-    QGroupBox* display_server_group = new QGroupBox("Display Server");
-    QVBoxLayout* display_server_layout = new QVBoxLayout(display_server_group);
-    display_server_layout->addWidget(new QLabel("Display server (requires restart):"));
-    display_server_paths_combo_ = new QComboBox();
-    display_server_paths_combo_->addItem("Auto-detect", "auto");
-    display_server_paths_combo_->addItem("X11", "x11");
-    display_server_paths_combo_->addItem("Wayland", "wayland");
-    display_server_layout->addWidget(display_server_paths_combo_);
-    paths_layout->addWidget(display_server_group);
-    
-    paths_layout->addStretch();
-    tab_widget->addTab(paths_tab, "Paths");
-    
-    main_layout->addWidget(tab_widget);
-    
-    // Buttons
-    QHBoxLayout* button_layout = new QHBoxLayout();
-    button_layout->addStretch();
-    
-    reset_button_ = new QPushButton("Reset to Defaults");
-    connect(reset_button_, &QPushButton::clicked, this, &PreferencesDialog::reset_defaults);
-    button_layout->addWidget(reset_button_);
-    
-    cancel_button_ = new QPushButton("Cancel");
-    connect(cancel_button_, &QPushButton::clicked, this, &QDialog::reject);
-    button_layout->addWidget(cancel_button_);
-    
-    save_button_ = new QPushButton("Save");
-    save_button_->setDefault(true);
-    connect(save_button_, &QPushButton::clicked, this, &PreferencesDialog::save_preferences);
-    button_layout->addWidget(save_button_);
-    
-    main_layout->addLayout(button_layout);
+    setMinimumSize(650, 500);
+    setupUI();
+    loadCurrentConfig();
 }
 
-void PreferencesDialog::load_preferences() {
-    QSettings settings;
+void PreferencesDialog::setupUI() {
+    auto* mainLayout = new QVBoxLayout(this);
+    auto* tabs = new QTabWidget();
+
+    // --- Paths Tab ---
+    auto* pathsTab = new QWidget();
+    auto* pathsLayout = new QVBoxLayout(pathsTab);
     
-    // General
-    auto_start_checkbox_->setChecked(settings.value("auto_start", false).toBool());
-    minimize_to_tray_checkbox_->setChecked(settings.value("minimize_to_tray", true).toBool());
-    show_notifications_checkbox_->setChecked(settings.value("show_notifications", true).toBool());
+    conkyPathEdit = new QLineEdit();
+    auto* conkyBrowse = new QPushButton("Browse...");
+    auto* cpLayout = new QHBoxLayout();
+    cpLayout->addWidget(conkyPathEdit);
+    cpLayout->addWidget(conkyBrowse);
+    pathsLayout->addWidget(new QLabel("Conky Configurations Directory:"));
+    pathsLayout->addLayout(cpLayout);
+
+    themesPathEdit = new QLineEdit();
+    auto* themesBrowse = new QPushButton("Browse...");
+    auto* tpLayout = new QHBoxLayout();
+    tpLayout->addWidget(themesPathEdit);
+    tpLayout->addWidget(themesBrowse);
+    pathsLayout->addWidget(new QLabel("Themes (.lua) Directory:"));
+    pathsLayout->addLayout(tpLayout);
+    pathsLayout->addStretch();
+
+    connect(conkyBrowse, &QPushButton::clicked, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Conky Dir", conkyPathEdit->text());
+        if (!dir.isEmpty()) conkyPathEdit->setText(dir);
+    });
+    connect(themesBrowse, &QPushButton::clicked, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Themes Dir", themesPathEdit->text());
+        if (!dir.isEmpty()) themesPathEdit->setText(dir);
+    });
+
+    // --- "Start Mains" Panels Tab ---
+    auto* panelsTab = new QWidget();
+    auto* panelsLayout = new QVBoxLayout(panelsTab);
+    panelsLayout->addWidget(new QLabel("Panels started by 'Start Mains' button:"));
     
-    QString display_server = QString::fromStdString(ConfigManager::instance().get_display_server());
-    int display_index = display_server_combo_->findData(display_server);
-    if (display_index >= 0) {
-        display_server_combo_->setCurrentIndex(display_index);
+    panelsList = new QListWidget();
+    panelsLayout->addWidget(panelsList);
+    
+    auto* pButtons = new QHBoxLayout();
+    auto* addPanel = new QPushButton("Add Panel");
+    auto* remPanel = new QPushButton("Remove Selected");
+    pButtons->addWidget(addPanel);
+    pButtons->addWidget(remPanel);
+    panelsLayout->addLayout(pButtons);
+
+    connect(addPanel, &QPushButton::clicked, [this]() {
+        QString name = UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):").c_str();
+        if (!name.isEmpty()) panelsList->addItem(name);
+    });
+    connect(remPanel, &QPushButton::clicked, [this]() {
+        delete panelsList->currentItem();
+    });
+
+    // --- Editors Tab ---
+    auto* editorsTab = new QWidget();
+    auto* editorsLayout = new QVBoxLayout(editorsTab);
+    editorsTable = new QTableWidget(0, 3);
+    editorsTable->setHorizontalHeaderLabels({"Name", "Command", "Icon"});
+    editorsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    editorsLayout->addWidget(editorsTable);
+
+    auto* eButtons = new QHBoxLayout();
+    auto* addEditor = new QPushButton("Add Editor");
+    auto* remEditor = new QPushButton("Remove Selected");
+    eButtons->addWidget(addEditor);
+    eButtons->addWidget(remEditor);
+    editorsLayout->addLayout(eButtons);
+
+    connect(addEditor, &QPushButton::clicked, [this]() {
+        int row = editorsTable->rowCount();
+        editorsTable->insertRow(row);
+        editorsTable->setItem(row, 0, new QTableWidgetItem("New Editor"));
+        editorsTable->setItem(row, 1, new QTableWidgetItem("command"));
+        editorsTable->setItem(row, 2, new QTableWidgetItem("📝"));
+    });
+    connect(remEditor, &QPushButton::clicked, [this]() {
+        editorsTable->removeRow(editorsTable->currentRow());
+    });
+
+    // --- App Info Tab ---
+    auto* infoTab = new QWidget();
+    auto* infoLayout = new QVBoxLayout(infoTab);
+    appNameEdit = new QLineEdit();
+    infoLayout->addWidget(new QLabel("Application Display Name:"));
+    infoLayout->addWidget(appNameEdit);
+    infoLayout->addStretch();
+
+    tabs->addTab(pathsTab, "Paths");
+    tabs->addTab(panelsTab, "Start Mains");
+    tabs->addTab(editorsTab, "Editors");
+    tabs->addTab(infoTab, "General");
+
+    mainLayout->addWidget(tabs);
+
+    // Bottom Buttons
+    auto* bottomButtons = new QHBoxLayout();
+    auto* saveBtn = new QPushButton("Save & Apply");
+    saveBtn->setStyleSheet("background-color: #1a7f37; color: white; font-weight: bold; padding: 8px;");
+    auto* cancelBtn = new QPushButton("Cancel");
+    bottomButtons->addStretch();
+    bottomButtons->addWidget(cancelBtn);
+    bottomButtons->addWidget(saveBtn);
+    mainLayout->addLayout(bottomButtons);
+
+    connect(saveBtn, &QPushButton::clicked, this, &PreferencesDialog::saveAndAccept);
+    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+}
+
+void PreferencesDialog::loadCurrentConfig() {
+    auto& config = ConfigManager::instance();
+    
+    conkyPathEdit->setText(QString::fromStdString(config.get_conky_wayland_directory().string()));
+    themesPathEdit->setText(QString::fromStdString(config.get_themes_directory().string()));
+    appNameEdit->setText(QString::fromStdString(config.get_app_config().display_name));
+
+    for (const auto& panel : config.get_ui_config().default_panels_to_start) {
+        panelsList->addItem(QString::fromStdString(panel));
     }
-    
-    // Editor
-    font_family_combo_->setCurrentFont(QFont(settings.value("editor_font_family", "Monospace").toString()));
-    font_size_spin_->setValue(settings.value("editor_font_size", 10).toInt());
-    tab_size_spin_->setValue(settings.value("editor_tab_size", 4).toInt());
-    word_wrap_checkbox_->setChecked(settings.value("editor_word_wrap", false).toBool());
-    auto_indent_checkbox_->setChecked(settings.value("editor_auto_indent", true).toBool());
-    line_numbers_checkbox_->setChecked(settings.value("editor_line_numbers", true).toBool());
-    
-    // Logging
-    QString log_level = settings.value("log_level", "INFO").toString();
-    int log_index = log_level_combo_->findData(log_level);
-    if (log_index >= 0) {
-        log_level_combo_->setCurrentIndex(log_index);
-    }
-    log_to_file_checkbox_->setChecked(settings.value("log_to_file", true).toBool());
-    log_folder_edit_->setText(settings.value("log_folder", "").toString());
-    log_retention_spin_->setValue(settings.value("log_retention_days", 30).toInt());
-    
-    // UI
-    app_theme_combo_->setCurrentText(settings.value("app_theme", "Default Light").toString());
-    show_toolbar_checkbox_->setChecked(settings.value("show_toolbar", true).toBool());
-    show_statusbar_checkbox_->setChecked(settings.value("show_statusbar", true).toBool());
-    refresh_interval_spin_->setValue(settings.value("refresh_interval", 5).toInt());
-    
-    // Paths
-    conky_config_edit_->setText(QString::fromStdString(ConfigManager::instance().get_conky_wayland_directory().string()));
-    themes_folder_edit_->setText(QString::fromStdString(ConfigManager::instance().get_themes_directory().string()));
-    int ds_index = display_server_paths_combo_->findData(display_server);
-    if (ds_index >= 0) {
-        display_server_paths_combo_->setCurrentIndex(ds_index);
+
+    for (const auto& editor : config.get_editors()) {
+        int row = editorsTable->rowCount();
+        editorsTable->insertRow(row);
+        editorsTable->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(editor.name)));
+        editorsTable->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(editor.command)));
+        editorsTable->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(editor.icon)));
     }
 }
 
-void PreferencesDialog::save_preferences() {
-    QSettings settings;
+void PreferencesDialog::saveAndAccept() {
+    auto& config = ConfigManager::instance();
     
-    // General
-    settings.setValue("auto_start", auto_start_checkbox_->isChecked());
-    settings.setValue("minimize_to_tray", minimize_to_tray_checkbox_->isChecked());
-    settings.setValue("show_notifications", show_notifications_checkbox_->isChecked());
+    // Update Paths
+    config.set_conky_config_path(conkyPathEdit->text().toStdString());
+    config.set_themes_path(themesPathEdit->text().toStdString());
     
-    // Save display server to config
-    ConfigManager::instance().set_display_server(display_server_combo_->currentData().toString().toStdString());
+    // Update App Info
+    config.get_app_config().display_name = appNameEdit->text().toStdString();
     
-    // Editor
-    settings.setValue("editor_font_family", font_family_combo_->currentFont().family());
-    settings.setValue("editor_font_size", font_size_spin_->value());
-    settings.setValue("editor_tab_size", tab_size_spin_->value());
-    settings.setValue("editor_word_wrap", word_wrap_checkbox_->isChecked());
-    settings.setValue("editor_auto_indent", auto_indent_checkbox_->isChecked());
-    settings.setValue("editor_line_numbers", line_numbers_checkbox_->isChecked());
-    
-    // Logging
-    settings.setValue("log_level", log_level_combo_->currentData().toString());
-    settings.setValue("log_to_file", log_to_file_checkbox_->isChecked());
-    settings.setValue("log_folder", log_folder_edit_->text());
-    settings.setValue("log_retention_days", log_retention_spin_->value());
-    
-    // UI
-    settings.setValue("app_theme", app_theme_combo_->currentText());
-    settings.setValue("show_toolbar", show_toolbar_checkbox_->isChecked());
-    settings.setValue("show_statusbar", show_statusbar_checkbox_->isChecked());
-    settings.setValue("refresh_interval", refresh_interval_spin_->value());
-    
-    // Paths
-    if (!conky_config_edit_->text().isEmpty()) {
-        ConfigManager::instance().set_conky_config_path(conky_config_edit_->text().toStdString());
+    // Update Panels
+    config.get_ui_config().default_panels_to_start.clear();
+    for(int i = 0; i < panelsList->count(); ++i) {
+        config.get_ui_config().default_panels_to_start.push_back(panelsList->item(i)->text().toStdString());
     }
     
-    // Save display server from paths tab
-    ConfigManager::instance().set_display_server(display_server_paths_combo_->currentData().toString().toStdString());
-    
-    // Save config
-    ConfigManager::instance().save_config();
-    
-    LOG_INFO("Preferences saved");
-    QMessageBox::information(this, "Preferences", "Preferences saved successfully. Some changes may require a restart.");
-    
-    accept();
-}
-
-void PreferencesDialog::reset_defaults() {
-    if (QMessageBox::question(this, "Reset Preferences", 
-        "Are you sure you want to reset all preferences to defaults?") == QMessageBox::Yes) {
-        
-        QSettings settings;
-        settings.clear();
-        
-        load_preferences();
-        LOG_INFO("Preferences reset to defaults");
+    // Update Editors
+    config.get_editors().clear();
+    for(int i = 0; i < editorsTable->rowCount(); ++i) {
+        config.get_editors().push_back({
+            editorsTable->item(i, 0)->text().toStdString(),
+            editorsTable->item(i, 1)->text().toStdString(),
+            editorsTable->item(i, 2)->text().toStdString()
+        });
     }
-}
 
-void PreferencesDialog::browse_log_folder() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Select Log Folder", log_folder_edit_->text());
-    if (!dir.isEmpty()) {
-        log_folder_edit_->setText(dir);
+    if (config.save_config()) {
+        accept();
+    } else {
+        QMessageBox::critical(this, "Error", "Failed to save configuration to app_config.json");
     }
-}
-
-void PreferencesDialog::browse_conky_config_folder() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Select Conky Configuration Folder", conky_config_edit_->text());
-    if (!dir.isEmpty()) {
-        conky_config_edit_->setText(dir);
-    }
-}
-
-void PreferencesDialog::browse_themes_folder() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Select Themes Folder", themes_folder_edit_->text());
-    if (!dir.isEmpty()) {
-        themes_folder_edit_->setText(dir);
-    }
-}
-
-void PreferencesDialog::apply_preferences() {
-    // Apply preferences immediately
-    // This would be called when preferences change
 }
