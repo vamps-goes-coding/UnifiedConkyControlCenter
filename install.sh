@@ -363,54 +363,43 @@ detect_os() {
 check_privileges() {
     if [ "$SKIP_SUDO_CHECK" = "true" ]; then return; fi
     if [ "$EUID" -eq 0 ]; then return; fi
-    if sudo -n true 2>/dev/null; then return; fi
+    # Check if we already have cached credentials
+    if sudo -v -n 2>/dev/null; then return; fi
 
     gui_confirm "Privileges Required" \
         "$APP_DISPLAY_NAME needs sudo privileges to install.\n\nPlease enter your password when prompted." || \
         fatal "Installation cancelled — sudo access required"
 
-    # Prompt sudo now so it's cached
-    # Use -A flag to leverage askpass helper for GUI environments, or fall back to terminal
     if [ "$GUI_TOOLKIT" != "cli" ]; then
-        # GUI mode: try to use askpass helper if available
         if command -v ssh-askpass &>/dev/null; then
-            SUDO_ASKPASS=ssh-askpass sudo -A true || fatal "Failed to obtain sudo privileges"
+            SUDO_ASKPASS=$(command -v ssh-askpass) sudo -A -v || fatal "Failed to obtain sudo privileges"
         elif command -v ksshaskpass &>/dev/null; then
-            SUDO_ASKPASS=ksshaskpass sudo -A true || fatal "Failed to obtain sudo privileges"
-        elif command -v zenity &>/dev/null; then
-            # Create a temporary askpass script using zenity
+            SUDO_ASKPASS=$(command -v ksshaskpass) sudo -A -v || fatal "Failed to obtain sudo privileges"
+        elif [ "$GUI_TOOLKIT" = "zenity" ] || [ "$GUI_TOOLKIT" = "yad" ]; then
             local askpass_script=$(mktemp)
-            cat > "$askpass_script" << 'ASKPASS_EOF'
-#!/bin/bash
-zenity --password --title="Sudo Password Required"
-ASKPASS_EOF
+            printf '#!/bin/bash\nzenity --password --title="Sudo Password Required"' > "$askpass_script"
             chmod +x "$askpass_script"
-            SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
+            SUDO_ASKPASS="$askpass_script" sudo -A -v || fatal "Failed to obtain sudo privileges"
             rm -f "$askpass_script"
-        elif command -v kdialog &>/dev/null; then
-            # On Wayland, kdialog askpass may not work — use sudo -S with kdialog password input
+        elif [ "$GUI_TOOLKIT" = "kdialog" ]; then
             if [ "$DISPLAY_SERVER" = "wayland" ]; then
-                local passwd
-                passwd=$(kdialog --password "Enter sudo password:" --title "Sudo Password Required") || \
+                # Wayland kdialog workaround: standalone prompt + pipe to sudo -S
+                local passwd=$(kdialog --password "Enter sudo password:" --title "Sudo Password Required") || \
                     fatal "Password entry cancelled"
-                echo "$passwd" | sudo -S true 2>/dev/null || fatal "Failed to obtain sudo privileges"
+                echo "$passwd" | sudo -S -v 2>/dev/null || fatal "Failed to obtain sudo privileges"
+                unset passwd
             else
-                # X11: use askpass script
                 local askpass_script=$(mktemp)
-                cat > "$askpass_script" << 'ASKPASS_EOF'
-#!/bin/bash
-kdialog --password "Enter sudo password:"
-ASKPASS_EOF
+                printf '#!/bin/bash\nkdialog --password "Enter sudo password:"' > "$askpass_script"
                 chmod +x "$askpass_script"
-                SUDO_ASKPASS="$askpass_script" sudo -A true || fatal "Failed to obtain sudo privileges"
+                SUDO_ASKPASS="$askpass_script" sudo -A -v || fatal "Failed to obtain sudo privileges"
                 rm -f "$askpass_script"
             fi
         else
-            # No askpass helper available, try with explicit TTY allocation
+            # Fallback to standard terminal prompt
             sudo -v || fatal "Failed to obtain sudo privileges"
         fi
     else
-        # CLI mode: standard sudo should work with terminal
         sudo -v || fatal "Failed to obtain sudo privileges"
     fi
 }
@@ -695,6 +684,8 @@ do_uninstall() {
         gui_confirm "Keep Settings?" \
             "Keep your personal settings and config files?\n($CONFIG_DIR)" && keep_config=true
     fi
+
+    check_privileges
 
     gui_progress_start "Uninstalling" "Removing $APP_DISPLAY_NAME..."
     gui_progress_update 10 "Detecting install method..."
