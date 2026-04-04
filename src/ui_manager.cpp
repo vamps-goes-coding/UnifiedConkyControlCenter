@@ -2101,7 +2101,17 @@ void UIManager::setup_system_tray() {
     });
     
     tray_menu->addSeparator();
-    
+
+    QAction* preferences_action = tray_menu->addAction("Preferences...");
+    QObject::connect(preferences_action, &QAction::triggered, []() {
+        PreferencesDialog dialog(main_window_instance);
+        if (dialog.exec() == QDialog::Accepted) {
+            refresh_all_tabs();
+        }
+    });
+
+    tray_menu->addSeparator();
+
     QAction* quit_action = tray_menu->addAction("Exit");
     QObject::connect(quit_action, &QAction::triggered, []() {
         quit_application();
