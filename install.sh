@@ -377,22 +377,24 @@ check_privileges() {
             SUDO_ASKPASS=$(command -v ksshaskpass) sudo -A -v || fatal "Failed to obtain sudo privileges"
         elif [ "$GUI_TOOLKIT" = "zenity" ] || [ "$GUI_TOOLKIT" = "yad" ]; then
             local askpass_script=$(mktemp)
-            printf '#!/bin/bash\nzenity --password --title="Sudo Password Required"' > "$askpass_script"
+            local askpass_script=$(mktemp)
+            printf '#!/bin/bash
+zenity --password --title="Sudo Password Required"' > "$askpass_script"
             chmod +x "$askpass_script"
-            SUDO_ASKPASS="$askpass_script" sudo -A -v || fatal "Failed to obtain sudo privileges"
-            rm -f "$askpass_script"
+            SUDO_ASKPASS="$askpass_script" sudo -A -v || { rm -f "$askpass_script"; fatal "Failed to obtain sudo privileges"; }
+            trap 'rm -f "$askpass_script" 2>/dev/null' EXIT
         elif [ "$GUI_TOOLKIT" = "kdialog" ]; then
             if [ "$DISPLAY_SERVER" = "wayland" ]; then
                 # Wayland kdialog workaround: standalone prompt + pipe to sudo -S
                 local passwd=$(kdialog --password "Enter sudo password:" --title "Sudo Password Required") || \
                     fatal "Password entry cancelled"
                 echo "$passwd" | sudo -S -v 2>/dev/null || fatal "Failed to obtain sudo privileges"
-                unset passwd
-            else
                 local askpass_script=$(mktemp)
-                printf '#!/bin/bash\nkdialog --password "Enter sudo password:"' > "$askpass_script"
+                printf '#!/bin/bash
+kdialog --password "Enter sudo password:"' > "$askpass_script"
                 chmod +x "$askpass_script"
-                SUDO_ASKPASS="$askpass_script" sudo -A -v || fatal "Failed to obtain sudo privileges"
+                SUDO_ASKPASS="$askpass_script" sudo -A -v || { rm -f "$askpass_script"; fatal "Failed to obtain sudo privileges"; }
+                trap 'rm -f "$askpass_script" 2>/dev/null' EXIT
                 rm -f "$askpass_script"
             fi
         else
