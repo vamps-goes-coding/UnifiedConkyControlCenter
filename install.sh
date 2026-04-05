@@ -358,51 +358,25 @@ detect_os() {
 }
 
 # =============================================================================
-# PRIVILEGE CHECK
+# ON-DEMAND SUDO EXECUTION
 # =============================================================================
-check_privileges() {
-    if [ "$SKIP_SUDO_CHECK" = "true" ]; then return; fi
-    if [ "$EUID" -eq 0 ]; then return; fi
-    # Check if we already have cached credentials
-    if sudo -v -n 2>/dev/null; then return; fi
-
-    gui_confirm "Privileges Required" \
-        "$APP_DISPLAY_NAME needs sudo privileges to install.\n\nPlease enter your password when prompted." || \
-        fatal "Installation cancelled — sudo access required"
-
-    if [ "$GUI_TOOLKIT" != "cli" ]; then
-        if command -v ssh-askpass &>/dev/null; then
-            SUDO_ASKPASS=$(command -v ssh-askpass) sudo -A -v || fatal "Failed to obtain sudo privileges"
-        elif command -v ksshaskpass &>/dev/null; then
-            SUDO_ASKPASS=$(command -v ksshaskpass) sudo -A -v || fatal "Failed to obtain sudo privileges"
-        elif [ "$GUI_TOOLKIT" = "zenity" ] || [ "$GUI_TOOLKIT" = "yad" ]; then
-            local askpass_script=$(mktemp)
-            local askpass_script=$(mktemp)
-            printf '#!/bin/bash
-zenity --password --title="Sudo Password Required"' > "$askpass_script"
-            chmod +x "$askpass_script"
-            SUDO_ASKPASS="$askpass_script" sudo -A -v || { rm -f "$askpass_script"; fatal "Failed to obtain sudo privileges"; }
-            trap 'rm -f "$askpass_script" 2>/dev/null' EXIT
-        elif [ "$GUI_TOOLKIT" = "kdialog" ]; then
-            if [ "$DISPLAY_SERVER" = "wayland" ]; then
-                # Wayland kdialog workaround: standalone prompt + pipe to sudo -S
-                local passwd=$(kdialog --password "Enter sudo password:" --title "Sudo Password Required") || \
-                    fatal "Password entry cancelled"
-                echo "$passwd" | sudo -S -v 2>/dev/null || fatal "Failed to obtain sudo privileges"
-                local askpass_script=$(mktemp)
-                printf '#!/bin/bash
-kdialog --password "Enter sudo password:"' > "$askpass_script"
-                chmod +x "$askpass_script"
-                SUDO_ASKPASS="$askpass_script" sudo -A -v || { rm -f "$askpass_script"; fatal "Failed to obtain sudo privileges"; }
-                trap 'rm -f "$askpass_script" 2>/dev/null' EXIT
-                rm -f "$askpass_script"
-            fi
-        else
-            # Fallback to standard terminal prompt
-            sudo -v || fatal "Failed to obtain sudo privileges"
-        fi
+# Execute command with sudo, prompting ONLY when actually needed
+# No pre-authentication, no password caching, no temporary files
+sudo_run() {
+    if [ "$EUID" -eq 0 ]; then
+        # Already running as root
+        "$@"
+    elif [ "$GUI_TOOLKIT" = "zenity" ] || [ "$GUI_TOOLKIT" = "yad" ]; then
+        zenity --password --title="Sudo Password Required" 2>/dev/null | sudo -S "$@"
+    elif [ "$GUI_TOOLKIT" = "kdialog" ]; then
+        kdialog --password "Enter sudo password:" --title "Sudo Password Required" 2>/dev/null | sudo -S "$@"
+    elif command -v ksshaskpass >/dev/null 2>&1; then
+        SUDO_ASKPASS=$(command -v ksshaskpass) sudo -A "$@"
+    elif command -v ssh-askpass >/dev/null 2>&1; then
+        SUDO_ASKPASS=$(command -v ssh-askpass) sudo -A "$@"
     else
-        sudo -v || fatal "Failed to obtain sudo privileges"
+        # Fallback to standard terminal sudo
+        sudo "$@"
     fi
 }
 
