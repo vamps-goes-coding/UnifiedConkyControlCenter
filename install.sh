@@ -661,7 +661,7 @@ do_uninstall() {
             "Keep your personal settings and config files?\n($CONFIG_DIR)" && keep_config=true
     fi
 
-    check_privileges
+    # Sudo will prompt on demand when actually needed
 
     gui_progress_start "Uninstalling" "Removing $APP_DISPLAY_NAME..."
     gui_progress_update 10 "Detecting install method..."
@@ -756,7 +756,7 @@ do_fresh_install() {
         "Welcome to the $APP_DISPLAY_NAME installer!\n\nVersion: $VERSION\nThis will install $APP_DISPLAY_NAME on your system."
 
     # --- Privileges ---
-    check_privileges
+    # Sudo will prompt on demand when actually needed
 
     # --- Distro detection ---
     detect_os
@@ -847,7 +847,7 @@ do_local_install() {
     gui_info "Local Build Install" \
         "Installing $APP_DISPLAY_NAME from local build directory.\n\nMake sure you have run:\ncmake -B build && cmake --build build"
 
-    check_privileges
+    # Sudo will prompt on demand when actually needed
     detect_os
     check_dependencies
 
