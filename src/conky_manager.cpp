@@ -1,5 +1,6 @@
 #include "conky_manager.h"
 #include "utils.h"
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,7 @@
 #include <stdexcept>
 #include <string_view>
 
+using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 namespace {
@@ -47,7 +49,6 @@ std::vector<QProcess*> ConkyManager::_processes;
 std::chrono::steady_clock::time_point ConkyManager::_last_refresh_time;
 std::vector<std::string> ConkyManager::_cached_running_configs;
 double ConkyManager::_cache_time = 0.0;
-std::thread ConkyManager::_restart_thread;
 bool ConkyManager::_restart_pending = false;
 
 // Modern C++ improvements: use std::optional for better error handling
@@ -83,17 +84,30 @@ std::map<std::string, int> ConkyManager::load_tracked_pids() {
     if (fs::exists(active_panels_json_path())) {
         std::ifstream file(active_panels_json_path());
         if (file.is_open()) {
-            // Simple JSON parsing would go here
-            // For now, return empty map
+            try {
+                json j;
+                file >> j;
+                for (auto& [name, pid] : j.items()) {
+                    pids[name] = pid.get<int>();
+                }
+            } catch (...) {
+                // If file is corrupted, return empty
+            }
         }
     }
-
     return pids;
 }
 
 void ConkyManager::save_tracked_pids(const std::map<std::string, int>& pids) {
-    // Save PIDs to file
-    // Implementation would write JSON to active_panels_json_path()
+    try {
+        json j = pids;
+        std::ofstream file(active_panels_json_path());
+        if (file.is_open()) {
+            file << j.dump(4);
+        }
+    } catch (...) {
+        // Handle write errors
+    }
 }
 
 void ConkyManager::update_pid(const std::string& panel_name, int pid) {
@@ -310,12 +324,6 @@ void ConkyManager::restart_active_panels() {
     kill_all_conky();
     _cached_running_configs.clear();
 
-    // Join any previous restart thread so we don't leave joinable threads
-    // lying around (detached threads from the old code are gone).
-    if (_restart_thread.joinable()) {
-        _restart_thread.join();
-    }
-
     if (panels_to_restart.empty()) {
         return;
     }
@@ -382,11 +390,6 @@ void ConkyManager::wait_for_pending_restarts(int timeout_ms) {
         g_restart_cv.wait_until(lock, until, []() { return !_restart_pending; });
     }
 
-    // Join the (now mostly unused) restart thread if it is still joinable
-    lock.unlock();
-    if (_restart_thread.joinable()) {
-        _restart_thread.join();
-    }
 }
 
 void ConkyManager::cleanup_on_exit() {

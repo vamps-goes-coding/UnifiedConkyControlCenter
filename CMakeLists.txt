@@ -4,6 +4,22 @@ project(UnifiedConkyControlCenter VERSION 1.0.28 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and modern Qt 6.8 features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Automated Versioning Logic ---
+# Attempt to get the version from Git tags
+execute_process(
+    COMMAND git describe --tags --always
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_VERSION
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+if(GIT_VERSION)
+    set(APP_VERSION ${GIT_VERSION})
+else()
+    set(APP_VERSION ${PROJECT_VERSION})
+endif()
+
 # Enable ccache if available to speed up rebuilds across different build directories
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
@@ -86,6 +102,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Gui
     nlohmann_json::nlohmann_json
 )
+
+# Pass project version to the source code so it matches the GitHub release automatically
+target_compile_definitions(${PROJECT_NAME} PRIVATE APP_VERSION_STR="${APP_VERSION}")
 
 # 6. Installation Logic [cite: 6]
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

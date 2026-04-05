@@ -94,9 +94,10 @@ int UIManager::initialize_application(int argc, char* argv[]) {
         app_instance->setOrganizationName(QString::fromUtf8(AppInfo::kOrganization()));
         
         // Set essential attributes for modern Qt6 behavior
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         app_instance->setAttribute(Qt::AA_EnableHighDpiScaling, true);
         app_instance->setAttribute(Qt::AA_UseHighDpiPixmaps, true);
-        
+#endif
         // Set application icon
         QIcon app_icon(":/icons/conky-unified-center-icon.png");
         if (!app_icon.isNull()) {

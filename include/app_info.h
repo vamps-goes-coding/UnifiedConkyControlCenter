@@ -16,7 +16,11 @@ inline std::string get_internal_name() {
 }
 
 inline std::string get_version() {
+#ifdef APP_VERSION_STR
+    return APP_VERSION_STR;
+#else
     return ConfigManager::instance().get_version();
+#endif
 }
 
 inline std::string get_organization() {
@@ -35,8 +39,12 @@ inline const char* kInternalName() {
 }
 
 inline const char* kVersion() {
-    static std::string version = get_version();
-    return version.c_str();
+#ifdef APP_VERSION_STR
+    return APP_VERSION_STR;
+#else
+    static std::string v = get_version();
+    return v.c_str();
+#endif
 }
 
 inline const char* kOrganization() {

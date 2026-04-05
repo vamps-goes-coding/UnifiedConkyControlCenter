@@ -39,10 +39,10 @@ Default paths are smart—they search common locations like `~/.config/conky` an
 
 We provide ready-to-install packages for all major distributions:
 
-- **Ubuntu/Debian**: `sudo dpkg -i unified-conky-control-center-1.0.2-Linux-x86_64.deb`
-- **Fedora/RHEL/CentOS**: `sudo dnf install ./unified-conky-control-center-1.0.2-Linux-x86_64.rpm`
+- **Ubuntu/Debian**: `sudo dpkg -i unified-conky-control-center-1.0.28-Linux-x86_64.deb`
+- **Fedora/RHEL/CentOS**: `sudo dnf install ./unified-conky-control-center-1.0.28-Linux-x86_64.rpm`
 - **Arch Linux**: Download `PKGBUILD` and run `makepkg -si`
-- **Any Linux**: Extract the generic archive: `tar xzf unified-conky-control-center-1.0.2-Linux-x86_64.tar.gz`
+- **Any Linux**: Extract the generic archive: `tar xzf unified-conky-control-center-1.0.28-Linux-x86_64.tar.gz`
 - **Smart Installer**: Detects your OS and installs automatically:
   ```bash
   curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash
@@ -54,7 +54,7 @@ All packages available at: https://github.com/vamps-goes-coding/UnifiedConkyCont
 
 **Ubuntu/Debian:**
 ```bash
-wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.2/unified-conky-control-center_1.0.2_amd64.deb
+wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v1.0.28/unified-conky-control-center_1.0.28_amd64.deb
 sudo apt install ./unified-conky-control-center_*.deb
 ```
 
