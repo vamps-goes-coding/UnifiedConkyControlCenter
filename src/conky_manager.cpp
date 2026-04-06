@@ -141,7 +141,7 @@ void ConkyManager::reap_zombies() {
     auto it = _processes.begin();
     while (it != _processes.end()) {
         if ((*it)->state() == QProcess::NotRunning) {
-            delete *it;
+            (*it)->deleteLater();
             it = _processes.erase(it);
         } else {
             ++it;
@@ -183,7 +183,7 @@ void ConkyManager::kill_all_conky() {
 
     // Clean up process handles
     for (QProcess* p : _processes) {
-        delete p;
+        p->deleteLater();
     }
     _processes.clear();
 
@@ -223,7 +223,11 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     // track the child process lifetime via its process ID.
     auto p = std::make_unique<QProcess>();
     p->setProgram("conky");
-    p->setArguments({"-c", QString::fromStdString(config_path.string())});
+    QString q_config_path = QString::fromStdString(config_path.string());
+    if (q_config_path.isEmpty()) {
+        throw std::runtime_error("Invalid configuration path for panel: " + panel_name);
+    }
+    p->setArguments({"-c", q_config_path});
     p->start();
 
     if (p->waitForStarted(2000)) {
@@ -278,11 +282,18 @@ void ConkyManager::stop_panel(const std::string& panel_name) {
 }
 
 void ConkyManager::reload_panel(const std::string& panel_name) {
-    fs::path config_path = Utils::get_conky_config_path(panel_name);
+    try {
+        fs::path config_path = Utils::get_conky_config_path(panel_name);
+        std::string filename = config_path.filename().string();
+        if (filename.empty()) return;
 
-    // Send SIGUSR1 to reload config on this specific instance
-    std::string reload_cmd = "pkill -SIGUSR1 -f \"conky -c.*" + config_path.filename().string() + "\"";
-    system(reload_cmd.c_str());
+        // Send SIGUSR1 to reload config on this specific instance
+        // We target the specific config file to avoid reloading unrelated instances
+        std::string reload_cmd = "pkill -SIGUSR1 -f \"conky -c.*" + filename + "\"";
+        system(reload_cmd.c_str());
+    } catch (...) {
+        // Absorb filesystem exceptions to prevent app crash
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +414,7 @@ void ConkyManager::cleanup_on_exit() {
     // This allows panels to keep running after the control centre is closed
     // and be re-detected on next startup.
     for (QProcess* p : _processes) {
-        delete p;
+        p->deleteLater();
     }
     _processes.clear();
 
@@ -463,22 +474,28 @@ void ConkyManager::_start_panels_sequence(const std::vector<std::string>& panels
 std::vector<std::string> ConkyManager::get_running_configs_uncached() {
     std::vector<std::string> running_configs;
 
-    FILE* pipe = popen("pgrep -af conky", "r");
+    // Be specific: only look for processes running with a config file
+    FILE* pipe = popen("pgrep -af 'conky -c'", "r");
     if (!pipe) return running_configs;
 
     char buffer[1024];
     while (fgets(buffer, sizeof(buffer), pipe)) {
         std::string line(buffer);
-        size_t c_pos = line.find("-c ");
+        size_t c_pos = line.find(" -c ");
         if (c_pos != std::string::npos) {
-            std::string path = line.substr(c_pos + 3);
+            std::string path = line.substr(c_pos + 4);
             // Trim trailing whitespace and newlines
             size_t end = path.find_last_not_of(" \n\r\t");
             if (end != std::string::npos) {
                 path = path.substr(0, end + 1);
             }
-            if (fs::exists(path)) {
-                running_configs.push_back(path);
+            
+            try {
+                if (!path.empty() && fs::exists(path)) {
+                    running_configs.push_back(path);
+                }
+            } catch (...) {
+                // Ignore errors for invalid paths detected from system process list
             }
         }
     }

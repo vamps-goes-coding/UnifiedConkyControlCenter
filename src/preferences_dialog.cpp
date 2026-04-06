@@ -110,14 +110,6 @@ void PreferencesDialog::setupUI() {
         editorsTable->removeRow(editorsTable->currentRow());
     });
 
-    // --- App Info Tab ---
-    auto* infoTab = new QWidget();
-    auto* infoLayout = new QVBoxLayout(infoTab);
-    appNameEdit = new QLineEdit();
-    infoLayout->addWidget(new QLabel("Application Display Name:"));
-    infoLayout->addWidget(appNameEdit);
-    infoLayout->addStretch();
-
     // --- Panel Discovery Tab ---
     auto* discoveryTab = new QWidget();
     auto* discoveryLayout = new QVBoxLayout(discoveryTab);
@@ -248,7 +240,6 @@ void PreferencesDialog::setupUI() {
     tabs->addTab(pathsTab, "Paths");
     tabs->addTab(panelsTab, "Start Mains");
     tabs->addTab(editorsTab, "Editors");
-    tabs->addTab(infoTab, "General");
     tabs->addTab(discoveryTab, "Panel Discovery");
     tabs->addTab(refreshTab, "Refresh & Window");
     tabs->addTab(displayTab, "Display Server");
@@ -276,9 +267,6 @@ void PreferencesDialog::loadCurrentConfig() {
     // Paths
     conkyPathEdit->setText(QString::fromStdString(config.get_conky_wayland_directory().string()));
     themesPathEdit->setText(QString::fromStdString(config.get_themes_directory().string()));
-    
-    // General
-    appNameEdit->setText(QString::fromStdString(config.get_application_config().display_name));
     
     // Panels
     for (const auto& panel : config.get_ui_config().default_panels_to_start) {
@@ -330,9 +318,6 @@ void PreferencesDialog::saveAndAccept() {
     // Update Paths
     config.set_conky_config_path(conkyPathEdit->text().toStdString());
     config.set_themes_path(themesPathEdit->text().toStdString());
-    
-    // Update General
-    config.get_application_config().display_name = appNameEdit->text().toStdString();
     
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();
