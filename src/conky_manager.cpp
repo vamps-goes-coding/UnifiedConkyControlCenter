@@ -141,7 +141,11 @@ void ConkyManager::reap_zombies() {
     auto it = _processes.begin();
     while (it != _processes.end()) {
         if ((*it)->state() == QProcess::NotRunning) {
+<<<<<<< HEAD
             (*it)->deleteLater();
+=======
+            delete *it;
+>>>>>>> master
             it = _processes.erase(it);
         } else {
             ++it;
@@ -183,7 +187,11 @@ void ConkyManager::kill_all_conky() {
 
     // Clean up process handles
     for (QProcess* p : _processes) {
+<<<<<<< HEAD
         p->deleteLater();
+=======
+        delete p;
+>>>>>>> master
     }
     _processes.clear();
 
@@ -223,11 +231,15 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     // track the child process lifetime via its process ID.
     auto p = std::make_unique<QProcess>();
     p->setProgram("conky");
+<<<<<<< HEAD
     QString q_config_path = QString::fromStdString(config_path.string());
     if (q_config_path.isEmpty()) {
         throw std::runtime_error("Invalid configuration path for panel: " + panel_name);
     }
     p->setArguments({"-c", q_config_path});
+=======
+    p->setArguments({"-c", QString::fromStdString(config_path.string())});
+>>>>>>> master
     p->start();
 
     if (p->waitForStarted(2000)) {
@@ -282,6 +294,7 @@ void ConkyManager::stop_panel(const std::string& panel_name) {
 }
 
 void ConkyManager::reload_panel(const std::string& panel_name) {
+<<<<<<< HEAD
     try {
         fs::path config_path = Utils::get_conky_config_path(panel_name);
         std::string filename = config_path.filename().string();
@@ -294,6 +307,13 @@ void ConkyManager::reload_panel(const std::string& panel_name) {
     } catch (...) {
         // Absorb filesystem exceptions to prevent app crash
     }
+=======
+    fs::path config_path = Utils::get_conky_config_path(panel_name);
+
+    // Send SIGUSR1 to reload config on this specific instance
+    std::string reload_cmd = "pkill -SIGUSR1 -f \"conky -c.*" + config_path.filename().string() + "\"";
+    system(reload_cmd.c_str());
+>>>>>>> master
 }
 
 // ---------------------------------------------------------------------------
@@ -414,7 +434,11 @@ void ConkyManager::cleanup_on_exit() {
     // This allows panels to keep running after the control centre is closed
     // and be re-detected on next startup.
     for (QProcess* p : _processes) {
+<<<<<<< HEAD
         p->deleteLater();
+=======
+        delete p;
+>>>>>>> master
     }
     _processes.clear();
 
@@ -474,21 +498,32 @@ void ConkyManager::_start_panels_sequence(const std::vector<std::string>& panels
 std::vector<std::string> ConkyManager::get_running_configs_uncached() {
     std::vector<std::string> running_configs;
 
+<<<<<<< HEAD
     // Be specific: only look for processes running with a config file
     FILE* pipe = popen("pgrep -af 'conky -c'", "r");
+=======
+    FILE* pipe = popen("pgrep -af conky", "r");
+>>>>>>> master
     if (!pipe) return running_configs;
 
     char buffer[1024];
     while (fgets(buffer, sizeof(buffer), pipe)) {
         std::string line(buffer);
+<<<<<<< HEAD
         size_t c_pos = line.find(" -c ");
         if (c_pos != std::string::npos) {
             std::string path = line.substr(c_pos + 4);
+=======
+        size_t c_pos = line.find("-c ");
+        if (c_pos != std::string::npos) {
+            std::string path = line.substr(c_pos + 3);
+>>>>>>> master
             // Trim trailing whitespace and newlines
             size_t end = path.find_last_not_of(" \n\r\t");
             if (end != std::string::npos) {
                 path = path.substr(0, end + 1);
             }
+<<<<<<< HEAD
             
             try {
                 if (!path.empty() && fs::exists(path)) {
@@ -496,6 +531,10 @@ std::vector<std::string> ConkyManager::get_running_configs_uncached() {
                 }
             } catch (...) {
                 // Ignore errors for invalid paths detected from system process list
+=======
+            if (fs::exists(path)) {
+                running_configs.push_back(path);
+>>>>>>> master
             }
         }
     }

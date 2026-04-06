@@ -354,3 +354,8 @@ Original Unified Conky Control Center by Mr.Vamps, inspired by the Conky Communi
 ## Website Links
 
 Conky website: www.conky.cc
+<<<<<<< HEAD
+=======
+if you need help with the program, please see the CONTACT.md (not yet uploaded but will be soon) to get help troubleshooting.
+Thanks for checking out Unified Conky Control Center, and I hope you enjoy using it.
+>>>>>>> master

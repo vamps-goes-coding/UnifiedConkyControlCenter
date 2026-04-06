@@ -37,6 +37,12 @@ private:
     // Editor settings
     QTableWidget* editorsTable;
 
+<<<<<<< HEAD
+=======
+    // General settings
+    QLineEdit* appNameEdit;
+
+>>>>>>> master
     // Panel Discovery settings
     QLineEdit* configPrefixEdit;
     QLineEdit* configExtensionEdit;

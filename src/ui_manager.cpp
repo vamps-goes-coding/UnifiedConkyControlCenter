@@ -1864,6 +1864,64 @@ QWidget* UIManager::create_theme_creator_tab(QWidget* parent) {
     
     mode_tabs->addTab(csv_page, "CSV Import");
     
+<<<<<<< HEAD
+    // Direct CSV Paste
+    QWidget* paste_page = new QWidget();
+    QVBoxLayout* paste_layout = new QVBoxLayout(paste_page);
+
+    QLabel* paste_label = new QLabel("Paste CSV data below (Format: Name, Primary, Secondary, Accent 1, Accent 2):");
+    paste_layout->addWidget(paste_label);
+
+    QTextEdit* paste_input = new QTextEdit();
+    paste_input->setPlaceholderText("Example:\nWarcraft,#32CD32,#4B0082,#000000,#ADFF2F");
+    paste_layout->addWidget(paste_input);
+
+    QLineEdit* paste_cat_le = new QLineEdit();
+    QHBoxLayout* p_cat_hl = new QHBoxLayout();
+    p_cat_hl->addWidget(new QLabel("Category:"));
+    p_cat_hl->addWidget(paste_cat_le);
+    paste_layout->addLayout(p_cat_hl);
+
+    QPushButton* paste_btn = new QPushButton("Process Paste Data");
+    paste_btn->setStyleSheet("padding: 10px; background-color: #673AB7; color: white; font-weight: bold;");
+    paste_layout->addWidget(paste_btn);
+
+    QObject::connect(paste_btn, &QPushButton::clicked, [=]() {
+        QString text = paste_input->toPlainText();
+        QString category = paste_cat_le->text().trimmed();
+        if (text.isEmpty() || category.isEmpty()) {
+            QMessageBox::warning(nullptr, "Missing Data", "Please paste CSV data and specify a category.");
+            return;
+        }
+
+        QStringList lines = text.split('\n', Qt::SkipEmptyParts);
+        int count = 0;
+        for (const QString& line : lines) {
+            // Skip header if present
+            if (line.contains("Theme", Qt::CaseInsensitive) || line.contains("Primary", Qt::CaseInsensitive)) continue;
+
+            QStringList parts = line.split(',');
+            if (parts.size() >= 5) {
+                std::string name = parts[0].trimmed().toStdString();
+                std::vector<std::string> colors = {
+                    parts[1].trimmed().toStdString(),
+                    parts[2].trimmed().toStdString(),
+                    parts[3].trimmed().toStdString(),
+                    parts[4].trimmed().toStdString()
+                };
+                if (ThemeManager::create_lua_theme(name, colors, Utils::themes_directory(), category.toStdString())) {
+                    count++;
+                }
+            }
+        }
+        QMessageBox::information(nullptr, "Import Complete", QString("Successfully created %1 themes in category '%2'.").arg(count).arg(category));
+        paste_input->clear();
+    });
+
+    mode_tabs->addTab(paste_page, "Direct CSV Paste");
+
+=======
+>>>>>>> master
     main_layout->addWidget(mode_tabs);
     return tab;
 }

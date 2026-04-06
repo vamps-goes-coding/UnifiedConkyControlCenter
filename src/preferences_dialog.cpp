@@ -110,6 +110,17 @@ void PreferencesDialog::setupUI() {
         editorsTable->removeRow(editorsTable->currentRow());
     });
 
+<<<<<<< HEAD
+=======
+    // --- App Info Tab ---
+    auto* infoTab = new QWidget();
+    auto* infoLayout = new QVBoxLayout(infoTab);
+    appNameEdit = new QLineEdit();
+    infoLayout->addWidget(new QLabel("Application Display Name:"));
+    infoLayout->addWidget(appNameEdit);
+    infoLayout->addStretch();
+
+>>>>>>> master
     // --- Panel Discovery Tab ---
     auto* discoveryTab = new QWidget();
     auto* discoveryLayout = new QVBoxLayout(discoveryTab);
@@ -240,6 +251,10 @@ void PreferencesDialog::setupUI() {
     tabs->addTab(pathsTab, "Paths");
     tabs->addTab(panelsTab, "Start Mains");
     tabs->addTab(editorsTab, "Editors");
+<<<<<<< HEAD
+=======
+    tabs->addTab(infoTab, "General");
+>>>>>>> master
     tabs->addTab(discoveryTab, "Panel Discovery");
     tabs->addTab(refreshTab, "Refresh & Window");
     tabs->addTab(displayTab, "Display Server");
@@ -268,6 +283,12 @@ void PreferencesDialog::loadCurrentConfig() {
     conkyPathEdit->setText(QString::fromStdString(config.get_conky_wayland_directory().string()));
     themesPathEdit->setText(QString::fromStdString(config.get_themes_directory().string()));
     
+<<<<<<< HEAD
+=======
+    // General
+    appNameEdit->setText(QString::fromStdString(config.get_application_config().display_name));
+    
+>>>>>>> master
     // Panels
     for (const auto& panel : config.get_ui_config().default_panels_to_start) {
         panelsList->addItem(QString::fromStdString(panel));
@@ -319,6 +340,12 @@ void PreferencesDialog::saveAndAccept() {
     config.set_conky_config_path(conkyPathEdit->text().toStdString());
     config.set_themes_path(themesPathEdit->text().toStdString());
     
+<<<<<<< HEAD
+=======
+    // Update General
+    config.get_application_config().display_name = appNameEdit->text().toStdString();
+    
+>>>>>>> master
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();
     for(int i = 0; i < panelsList->count(); ++i) {
