@@ -458,9 +458,9 @@ int main(int argc, char* argv[]) {
     
     // Initialize configuration
     auto& config = ConfigManager::instance();
-    if (!config.load_config()) {
-        LOG_WARNING("Could not load configuration file, using defaults");
-        std::cerr << "Warning: Could not load configuration file, using defaults" << std::endl;
+    bool configLoaded = config.load_config();
+    if (!configLoaded) {
+        LOG_WARNING("Configuration file not found or invalid, first run setup may be required");
     } else {
         LOG_INFO("Configuration loaded successfully");
     }
@@ -476,6 +476,11 @@ int main(int argc, char* argv[]) {
 
     if (useCli) {
         try {
+            if (!configLoaded) {
+                std::cerr << "Error: Application not configured. Please run the GUI version once to complete the first-run setup." << std::endl;
+                LOG_ERROR("CLI start failed: Application not configured");
+                return 1;
+            }
             LOG_INFO("Starting CLI mode");
             ConkyControlCenter app;
             app.run();
@@ -491,7 +496,7 @@ int main(int argc, char* argv[]) {
         UIManager::initialize_application(argc, argv);
         
         // Show first-run setup dialog if needed
-        if (FirstRunSetup::isFirstRun()) {
+        if (FirstRunSetup::isFirstRun() || !configLoaded) {
             LOG_INFO("First run detected, showing setup dialog");
             FirstRunSetup setupDialog;
             if (setupDialog.exec() == QDialog::Accepted) {
@@ -511,6 +516,7 @@ int main(int argc, char* argv[]) {
                 LOG_INFO("First run setup completed");
             } else {
                 LOG_INFO("First run setup cancelled");
+                return 0; // Exit if setup was required but cancelled
             }
         }
         
