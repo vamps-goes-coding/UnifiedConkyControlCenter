@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=Unified Conky Control Center
+GenericName=Conky Panel Manager
+Comment=Manage Conky Wayland panels, themes, and configuration
+Keywords=conky;unified;wayland;panel;theme;system;monitor;
+Exec=UnifiedConkyControlCenter
+Icon=UnifiedConkyControlCenter
+Terminal=false
+StartupNotify=true
+StartupWMClass=UnifiedConkyControlCenter
+Categories=Utility;System;Monitor;Qt;

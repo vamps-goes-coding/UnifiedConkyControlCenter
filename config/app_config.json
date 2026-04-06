@@ -1,0 +1,78 @@
+{
+  "application": {
+    "display_name": "Unified Conky Control Center",
+    "internal_name": "UnifiedConkyControlCenter",
+    "version": "1.0.2",
+    "organization": "Conky",
+    "github_url": "https://github.com/yourusername/Unified-Conky-Control-Center"
+  },
+  "paths": {
+    "conky_wayland_dir_env": "CONKY_WAYLAND_DIR",
+    "conky_themes_dir_env": "CONKY_THEMES_DIR",
+    "default_conky_subpath": "conky-confs/conky-wayland",
+    "default_themes_subpath": "themes"
+  },
+  "panel_discovery": {
+    "config_prefix": "conky-wayland-",
+    "config_extension": ".conf",
+    "excluded_files": ["weather-location"]
+  },
+  "ui": {
+    "window": {
+      "min_width": 900,
+      "min_height": 700,
+      "default_width": 1000,
+      "default_height": 750
+    },
+    "refresh_intervals": {
+      "heartbeat_seconds": 10,
+      "panel_status_seconds": 5
+    },
+    "default_panels_to_start": [
+      "all-media",
+      "basic-info",
+      "calendar",
+      "cpu-mem-swap",
+      "lan-network",
+      "network-wan",
+      "preview",
+      "processes",
+      "storage",
+      "timezones",
+      "weather",
+      "wifi-network",
+      "zashien"
+    ]
+  },
+  "themes": {
+    "file_extension": ".lua",
+    "current_theme_file": "current.lua",
+    "preview_helper_file": "preview_helper.lua",
+    "categories_file": "categories.lua",
+    "current_theme_txt": "current_theme.txt"
+  },
+  "app_themes": [
+    "Default Light",
+    "Dark Charcoal",
+    "Dracula",
+    "Nord",
+    "Solarized Light",
+    "Oceanic"
+  ],
+  "editors": [
+    {"name": "VS Code", "command": "code", "icon": "💠"},
+    {"name": "VSCodium", "command": "codium", "icon": "🔷"},
+    {"name": "Sublime", "command": "subl", "icon": "📑"},
+    {"name": "Atom", "command": "atom", "icon": "⚛️"},
+    {"name": "Kate", "command": "kate", "icon": "📝"},
+    {"name": "Gedit", "command": "gedit", "icon": "📄"},
+    {"name": "Mousepad", "command": "mousepad", "icon": "🖱️"},
+    {"name": "Geany", "command": "geany", "icon": "🔧"},
+    {"name": "Featherpad", "command": "featherpad", "icon": "🪶"},
+    {"name": "Neovim", "command": "nvim", "icon": "🟩"},
+    {"name": "Vim", "command": "vim", "icon": "⚙️"},
+    {"name": "Emacs", "command": "emacs", "icon": "🐃"},
+    {"name": "Nano", "command": "nano", "icon": "⌨️"},
+    {"name": "Micro", "command": "micro", "icon": "🔬"}
+  ]
+}

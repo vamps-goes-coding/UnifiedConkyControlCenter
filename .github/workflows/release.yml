@@ -1,0 +1,255 @@
+name: Release & Package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+
+jobs:
+  # ─── STEP 1: Sync version across all files before building ───────────────────
+  sync-version:
+    name: Sync Version Across Files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION_NUM="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "num=$VERSION_NUM" >> $GITHUB_OUTPUT
+
+      - name: Sync install.sh
+        run: |
+          sed -i "s/^VERSION=\"v[0-9]*\.[0-9]*\.[0-9]*\"/VERSION=\"${{ steps.ver.outputs.tag }}\"/" install.sh
+          echo "install.sh → VERSION=${{ steps.ver.outputs.tag }}"
+
+      - name: Sync CMakeLists.txt
+        run: |
+          sed -i "s/project(UnifiedConkyControlCenter VERSION [0-9]*\.[0-9]*\.[0-9]*/project(UnifiedConkyControlCenter VERSION ${{ steps.ver.outputs.num }}/" CMakeLists.txt
+          echo "CMakeLists.txt → VERSION=${{ steps.ver.outputs.num }}"
+
+      - name: Commit synced versions back to master
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add install.sh CMakeLists.txt
+          git diff --cached --quiet && echo "No version changes needed" || \
+            git commit -m "ci: sync version to ${{ steps.ver.outputs.tag }} [skip ci]"
+          git push origin master || echo "Nothing to push"
+
+  # ─── STEP 2: Build packages (waits for sync to complete) ─────────────────────
+  package-ubuntu:
+    name: "Ubuntu 24.04 (DEB Package)"
+    needs: sync-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev
+
+      - name: Configure and build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Generate DEB package
+        run: |
+          cd build
+          cpack -G DEB
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: build/*.deb
+
+  package-fedora:
+    name: "Fedora (RPM Package)"
+    needs: sync-version
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Install build dependencies
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel nlohmann-json-devel rpm-build
+
+      - name: Configure and build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Generate RPM package
+        run: |
+          cd build
+          cpack -G RPM
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: build/*.rpm
+
+  package-arch:
+    name: "Arch Linux (Package Source)"
+    needs: sync-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev
+
+      - name: Configure and build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Generate TGZ package for Arch
+        run: |
+          cd build
+          cpack -G TGZ
+
+      - name: Update PKGBUILD with current version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          sed -i "s/pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s|source=.*|source=(\"https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v\${pkgver}/UnifiedConkyControlCenter-\${pkgver}-Linux-x86_64.tar.gz\")|" PKGBUILD
+
+      - name: Upload Arch package source
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: |
+            PKGBUILD
+            build/*.tar.gz
+
+  # ─── STEP 3: Create the GitHub Release ───────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [package-ubuntu, package-fedora, package-arch]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-packages
+
+      - name: List artifacts
+        run: find release-packages -type f
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          find release-packages -type f | xargs -I{} cp {} release-files/
+          cp install.sh release-files/
+          ls -lh release-files/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-files/*
+          body: |
+            ## Release Notes
+            
+            This release includes packages for multiple Linux distributions:
+            
+            ### Installers
+            - **DEB** (Debian 12+, Ubuntu 22.04+): `*-Linux-x86_64.deb`
+            - **RPM** (Fedora, RHEL, CentOS): `*-Linux-x86_64.rpm`
+            - **Arch Linux** (Arch, Manjaro, EndeavourOS): Use the provided `PKGBUILD` file
+            - **TGZ** (Generic Linux): `*-Linux-x86_64.tar.gz`
+            
+            ### Installation Instructions
+            
+            **Ubuntu/Debian:**
+            ```bash
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.deb
+            sudo apt-get install ./UnifiedConkyControlCenter-*.deb
+            ```
+            
+            **Fedora/RHEL/CentOS:**
+            ```bash
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.rpm
+            sudo dnf install ./UnifiedConkyControlCenter-*.rpm
+            ```
+            
+            **Arch Linux:**
+            ```bash
+            # Download PKGBUILD and source
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/PKGBUILD
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.tar.gz
+            
+            # Build and install
+            makepkg -si
+            ```
+            
+            **Generic Linux (TGZ):**
+            ```bash
+            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.tar.gz
+            mkdir -p ~/.local
+            tar xzf UnifiedConkyControlCenter-*.tar.gz -C ~/.local
+            ~/.local/usr/local/bin/UnifiedConkyControlCenter
+            ```
+            
+            **Using Smart Installer Script:**
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash
+            ```
+            
+            Or specify a version:
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash -s -- --version ${{ github.ref_name }}
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

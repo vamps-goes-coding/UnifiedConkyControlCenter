@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  ubuntu-x11:
+    name: Ubuntu X11 Build + Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev conky-all xvfb
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run X11 smoke test
+        run: |
+          cd build
+          xvfb-run -a -s "-screen 0 1024x768x24" bash -c 'timeout 10 bash -c "printf \"8\n\" | ./UnifiedConkyControlCenter" || true'
+
+  ubuntu-wayland:
+    name: Ubuntu Wayland Build + Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev qt6-wayland-dev nlohmann-json3-dev conky-all weston
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run Wayland smoke test
+        run: |
+          cd build
+          weston --backend=headless-backend.so --width 1024 --height 768 --socket wayland-0 2>/dev/null &
+          WESTON_PID=$!
+          sleep 2
+          timeout 10 bash -c "XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf \"8\n\" | ./UnifiedConkyControlCenter" || true
+          kill -9 $WESTON_PID 2>/dev/null || true
+
+  fedora-x11:
+    name: Fedora X11 Build + Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel nlohmann-json-devel conky xorg-x11-server-Xvfb
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run X11 smoke test
+        run: |
+          cd build
+          xvfb-run -a -s "-screen 0 1024x768x24" bash -c 'timeout 10 bash -c "printf \"8\n\" | ./UnifiedConkyControlCenter" || true'
+
+  fedora-wayland:
+    name: Fedora Wayland Build + Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          dnf -y update
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel nlohmann-json-devel conky weston
+      - name: Configure and build
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+      - name: Run Wayland smoke test
+        run: |
+          cd build
+          weston --backend=headless-backend.so --width 1024 --height 768 --socket wayland-0 2>/dev/null &
+          WESTON_PID=$!
+          sleep 2
+          timeout 10 bash -c "XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf \"8\n\" | ./UnifiedConkyControlCenter" || true
+          kill -9 $WESTON_PID 2>/dev/null || true

@@ -1,0 +1,82 @@
+# Build directory - DO NOT COPY
+build*/
+build_*-test/
+_deps/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CPackConfig.cmake
+CPackSourceConfig.cmake
+
+# Compiled objects
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Executables
+UnifiedConkyControlCenter
+*.exe
+
+# Qt generated files
+*_autogen/
+moc_*
+qrc_*
+ui_*.h
+
+# Keep manual ui_manager files in source tree
+!src/ui_manager.cpp
+!include/ui_manager.h
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# User-specific config (don't overwrite user settings)
+~/.config/UnifiedConkyControlCenter/
+
+# Backup files
+*.bak
+*.backup
+
+# Development/Testing files and scripts (not for end users)
+TODO.md
+TESTING_GUIDE.md
+testing-guild.md
+memory_bank/
+run-tests.sh
+test-local.sh
+*.md
+!README.md
+
+# Secret Keys
+.ssh/
+id_ed25519*
+id_rsa*
+*.pub
+*.pem
+
+# Block everything in the .ssh folder if it's in this project
+.ssh/
+# Block common private key names even without extensions
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
