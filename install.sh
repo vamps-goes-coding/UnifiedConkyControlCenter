@@ -388,14 +388,14 @@ sudo_run() {
     if [ "$EUID" -eq 0 ]; then
         # Already running as root
         "$@"
-    fi
-
-    # Use GUI askpass if available and we are not in CLI mode
-    if [ -n "$SUDO_ASKPASS" ] && [ "$GUI_TOOLKIT" != "cli" ]; then
-        sudo -A "$@"
     else
-        # Fallback to standard terminal sudo
-        sudo "$@"
+        # Use GUI askpass if available and we are not in CLI mode
+        if [ -n "$SUDO_ASKPASS" ] && [ "$GUI_TOOLKIT" != "cli" ]; then
+            sudo -A "$@"
+        else
+            # Fallback to standard terminal sudo
+            sudo "$@"
+        fi
     fi
 }
 
