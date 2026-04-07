@@ -385,15 +385,20 @@ QWidget* UIManager::create_main_window() {
     );
     start_running_btn->setToolTip("Start all main panels");
     QObject::connect(start_running_btn, &QPushButton::clicked, []() {
-        // Use dynamic list from config instead of hardcoded values
-        auto panels_to_start = ConfigManager::instance().get_ui_config().default_panels_to_start;
-        
-        // Start each panel
-        for (const auto& panel : panels_to_start) {
-            ConkyManager::start_panel(panel);
+        try {
+            // Use dynamic list from config instead of hardcoded values
+            auto panels_to_start = ConfigManager::instance().get_ui_config().default_panels_to_start;
+            
+            // Start each panel
+            for (const auto& panel : panels_to_start) {
+                ConkyManager::start_panel(panel);
+            }
+            
+            show_tray_message("Panels", "Starting all main panels...");
+        } catch (const std::exception& e) {
+            QMessageBox::warning(nullptr, "Startup Error", 
+                QString("Failed to start one or more default panels: %1").arg(e.what()));
         }
-        
-        show_tray_message("Panels", "Starting all main panels...");
         
         // Refresh after a delay
         QTimer::singleShot(2000, []() {

@@ -73,10 +73,12 @@ bool ConfigManager::load_config(const fs::path& config_path) {
                 if (ri.contains("heartbeat_seconds")) ui_config_.refresh_intervals.heartbeat_seconds = ri["heartbeat_seconds"];
                 if (ri.contains("panel_status_seconds")) ui_config_.refresh_intervals.panel_status_seconds = ri["panel_status_seconds"];
             }
-            if (ui.contains("default_panels_to_start")) {
+            if (ui.contains("default_panels_to_start") && ui["default_panels_to_start"].is_array()) {
                 ui_config_.default_panels_to_start.clear();
                 for (const auto& panel : ui["default_panels_to_start"]) {
-                    ui_config_.default_panels_to_start.push_back(panel);
+                    if (panel.is_string()) {
+                        ui_config_.default_panels_to_start.push_back(panel.get<std::string>());
+                    }
                 }
             }
         }
