@@ -37,11 +37,8 @@ private:
     // Editor settings
     QTableWidget* editorsTable;
 
-
-
     // General settings
     QLineEdit* appNameEdit;
-
 
     // Panel Discovery settings
     QLineEdit* configPrefixEdit;

@@ -28,88 +28,79 @@ bool ConfigManager::load_config(const fs::path& config_path) {
         json config = json::parse(file);
         
         // Parse application config
-        if (config.contains("application")) {
+        if (config.contains("application") && config["application"].is_object()) {
             auto& app = config["application"];
-            if (app.contains("display_name")) app_config_.display_name = app["display_name"];
-            if (app.contains("internal_name")) app_config_.internal_name = app["internal_name"];
-            if (app.contains("version")) app_config_.version = app["version"];
-            if (app.contains("organization")) app_config_.organization = app["organization"];
+            app_config_.display_name = app.value("display_name", app_config_.display_name);
+            app_config_.internal_name = app.value("internal_name", app_config_.internal_name);
+            app_config_.version = app.value("version", app_config_.version);
+            app_config_.organization = app.value("organization", app_config_.organization);
         }
         
         // Parse paths config
-        if (config.contains("paths")) {
+        if (config.contains("paths") && config["paths"].is_object()) {
             auto& paths = config["paths"];
-            if (paths.contains("conky_wayland_dir_env")) paths_config_.conky_wayland_dir_env = paths["conky_wayland_dir_env"];
-            if (paths.contains("conky_themes_dir_env")) paths_config_.conky_themes_dir_env = paths["conky_themes_dir_env"];
-            if (paths.contains("default_conky_subpath")) paths_config_.default_conky_subpath = paths["default_conky_subpath"];
-            if (paths.contains("default_themes_subpath")) paths_config_.default_themes_subpath = paths["default_themes_subpath"];
+            paths_config_.conky_wayland_dir_env = paths.value("conky_wayland_dir_env", paths_config_.conky_wayland_dir_env);
+            paths_config_.conky_themes_dir_env = paths.value("conky_themes_dir_env", paths_config_.conky_themes_dir_env);
+            paths_config_.default_conky_subpath = paths.value("default_conky_subpath", paths_config_.default_conky_subpath);
+            paths_config_.default_themes_subpath = paths.value("default_themes_subpath", paths_config_.default_themes_subpath);
         }
         
         // Parse panel discovery config
-        if (config.contains("panel_discovery")) {
+        if (config.contains("panel_discovery") && config["panel_discovery"].is_object()) {
             auto& pd = config["panel_discovery"];
-            if (pd.contains("config_prefix")) panel_discovery_config_.config_prefix = pd["config_prefix"];
-            if (pd.contains("config_extension")) panel_discovery_config_.config_extension = pd["config_extension"];
-            if (pd.contains("excluded_files")) {
-                panel_discovery_config_.excluded_files.clear();
-                for (const auto& file : pd["excluded_files"]) {
-                    panel_discovery_config_.excluded_files.push_back(file);
-                }
+            panel_discovery_config_.config_prefix = pd.value("config_prefix", panel_discovery_config_.config_prefix);
+            panel_discovery_config_.config_extension = pd.value("config_extension", panel_discovery_config_.config_extension);
+            if (pd.contains("excluded_files") && pd["excluded_files"].is_array()) {
+                panel_discovery_config_.excluded_files = pd["excluded_files"].get<std::vector<std::string>>();
             }
         }
         
         // Parse UI config
-        if (config.contains("ui")) {
+        if (config.contains("ui") && config["ui"].is_object()) {
             auto& ui = config["ui"];
-            if (ui.contains("window")) {
+            if (ui.contains("window") && ui["window"].is_object()) {
                 auto& win = ui["window"];
-                if (win.contains("min_width")) ui_config_.window.min_width = win["min_width"];
-                if (win.contains("min_height")) ui_config_.window.min_height = win["min_height"];
-                if (win.contains("default_width")) ui_config_.window.default_width = win["default_width"];
-                if (win.contains("default_height")) ui_config_.window.default_height = win["default_height"];
+                ui_config_.window.min_width = win.value("min_width", ui_config_.window.min_width);
+                ui_config_.window.min_height = win.value("min_height", ui_config_.window.min_height);
+                ui_config_.window.default_width = win.value("default_width", ui_config_.window.default_width);
+                ui_config_.window.default_height = win.value("default_height", ui_config_.window.default_height);
             }
-            if (ui.contains("refresh_intervals")) {
+            if (ui.contains("refresh_intervals") && ui["refresh_intervals"].is_object()) {
                 auto& ri = ui["refresh_intervals"];
-                if (ri.contains("heartbeat_seconds")) ui_config_.refresh_intervals.heartbeat_seconds = ri["heartbeat_seconds"];
-                if (ri.contains("panel_status_seconds")) ui_config_.refresh_intervals.panel_status_seconds = ri["panel_status_seconds"];
+                ui_config_.refresh_intervals.heartbeat_seconds = ri.value("heartbeat_seconds", ui_config_.refresh_intervals.heartbeat_seconds);
+                ui_config_.refresh_intervals.panel_status_seconds = ri.value("panel_status_seconds", ui_config_.refresh_intervals.panel_status_seconds);
             }
             if (ui.contains("default_panels_to_start") && ui["default_panels_to_start"].is_array()) {
-                ui_config_.default_panels_to_start.clear();
-                for (const auto& panel : ui["default_panels_to_start"]) {
-                    if (panel.is_string()) {
-                        ui_config_.default_panels_to_start.push_back(panel.get<std::string>());
-                    }
-                }
+                ui_config_.default_panels_to_start = ui["default_panels_to_start"].get<std::vector<std::string>>();
             }
         }
         
         // Parse themes config
-        if (config.contains("themes")) {
+        if (config.contains("themes") && config["themes"].is_object()) {
             auto& themes = config["themes"];
-            if (themes.contains("file_extension")) themes_config_.file_extension = themes["file_extension"];
-            if (themes.contains("current_theme_file")) themes_config_.current_theme_file = themes["current_theme_file"];
-            if (themes.contains("preview_helper_file")) themes_config_.preview_helper_file = themes["preview_helper_file"];
-            if (themes.contains("categories_file")) themes_config_.categories_file = themes["categories_file"];
-            if (themes.contains("current_theme_txt")) themes_config_.current_theme_txt = themes["current_theme_txt"];
+            themes_config_.file_extension = themes.value("file_extension", themes_config_.file_extension);
+            themes_config_.current_theme_file = themes.value("current_theme_file", themes_config_.current_theme_file);
+            themes_config_.preview_helper_file = themes.value("preview_helper_file", themes_config_.preview_helper_file);
+            themes_config_.categories_file = themes.value("categories_file", themes_config_.categories_file);
+            themes_config_.current_theme_txt = themes.value("current_theme_txt", themes_config_.current_theme_txt);
         }
         
         // Parse app themes
-        if (config.contains("app_themes")) {
-            app_themes_.clear();
-            for (const auto& theme : config["app_themes"]) {
-                app_themes_.push_back(theme);
-            }
+        if (config.contains("app_themes") && config["app_themes"].is_array()) {
+            app_themes_ = config["app_themes"].get<std::vector<std::string>>();
         }
         
         // Parse editors
-        if (config.contains("editors")) {
+        if (config.contains("editors") && config["editors"].is_array()) {
             editors_.clear();
             for (const auto& editor : config["editors"]) {
-                EditorInfo info;
-                if (editor.contains("name")) info.name = editor["name"];
-                if (editor.contains("command")) info.command = editor["command"];
-                if (editor.contains("icon")) info.icon = editor["icon"];
-                editors_.push_back(info);
+                if (editor.is_object()) {
+                    EditorInfo info;
+                    info.name = editor.value("name", "");
+                    info.command = editor.value("command", "");
+                    info.icon = editor.value("icon", "");
+                    editors_.push_back(info);
+                }
             }
         }
         
@@ -304,8 +295,11 @@ bool ConfigManager::save_config() {
         }
         config["editors"] = editors_json;
         
-        // Write to file
-        std::ofstream file(config_path);
+        // Atomic save: write to .tmp file first to prevent corruption
+        fs::path tmp_path = config_path;
+        tmp_path += ".tmp";
+        
+        std::ofstream file(tmp_path);
         if (!file.is_open()) {
             return false;
         }
@@ -313,6 +307,7 @@ bool ConfigManager::save_config() {
         file << config.dump(4); // Pretty print with 4 spaces
         file.close();
         
+        fs::rename(tmp_path, config_path);
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Error saving config: " << e.what() << std::endl;

@@ -337,12 +337,9 @@ void PreferencesDialog::saveAndAccept() {
     // Update Paths
     config.set_conky_config_path(conkyPathEdit->text().toStdString());
     config.set_themes_path(themesPathEdit->text().toStdString());
-    
-
 
     // Update General
     config.get_application_config().display_name = appNameEdit->text().toStdString();
-    
 
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();
