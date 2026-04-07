@@ -415,29 +415,29 @@ install_dependencies() {
     case "$INSTALLER_TYPE" in
         deb)
             gui_progress_update 30 "Running apt-get..."
-            sudo apt-get update -y >> "$LOG_FILE" 2>&1
-            command -v conky &>/dev/null || sudo apt-get install -y conky >> "$LOG_FILE" 2>&1
+            sudo_run apt-get update -y >> "$LOG_FILE" 2>&1
+            command -v conky &>/dev/null || sudo_run apt-get install -y conky >> "$LOG_FILE" 2>&1
             # Try Qt6 first, fall back to Qt5
-            sudo apt-get install -y qt6-base-dev 2>/dev/null || \
-                sudo apt-get install -y qtbase5-dev >> "$LOG_FILE" 2>&1 || true
+            sudo_run apt-get install -y qt6-base-dev 2>/dev/null || \
+                sudo_run apt-get install -y qtbase5-dev >> "$LOG_FILE" 2>&1 || true
             ;;
         rpm_dnf)
             gui_progress_update 30 "Running dnf..."
-            command -v conky &>/dev/null || sudo dnf install -y conky >> "$LOG_FILE" 2>&1
-            sudo dnf install -y qt6-qtbase 2>/dev/null || \
-                sudo dnf install -y qt5-qtbase >> "$LOG_FILE" 2>&1 || true
+            command -v conky &>/dev/null || sudo_run dnf install -y conky >> "$LOG_FILE" 2>&1
+            sudo_run dnf install -y qt6-qtbase 2>/dev/null || \
+                sudo_run dnf install -y qt5-qtbase >> "$LOG_FILE" 2>&1 || true
             ;;
         rpm_zypper)
             gui_progress_update 30 "Running zypper..."
-            command -v conky &>/dev/null || sudo zypper install -y conky >> "$LOG_FILE" 2>&1
-            sudo zypper install -y libqt6-qtbase 2>/dev/null || \
-                sudo zypper install -y libqt5-qtbase >> "$LOG_FILE" 2>&1 || true
+            command -v conky &>/dev/null || sudo_run zypper install -y conky >> "$LOG_FILE" 2>&1
+            sudo_run zypper install -y libqt6-qtbase 2>/dev/null || \
+                sudo_run zypper install -y libqt5-qtbase >> "$LOG_FILE" 2>&1 || true
             ;;
         arch)
             gui_progress_update 30 "Running pacman..."
-            command -v conky &>/dev/null || sudo pacman -S --noconfirm conky >> "$LOG_FILE" 2>&1
-            sudo pacman -S --noconfirm --needed qt6-base 2>/dev/null || \
-                sudo pacman -S --noconfirm --needed qt5-base >> "$LOG_FILE" 2>&1 || true
+            command -v conky &>/dev/null || sudo_run pacman -S --noconfirm conky >> "$LOG_FILE" 2>&1
+            sudo_run pacman -S --noconfirm --needed qt6-base 2>/dev/null || \
+                sudo_run pacman -S --noconfirm --needed qt5-base >> "$LOG_FILE" 2>&1 || true
             ;;
     esac
 
@@ -485,8 +485,8 @@ get_package_name() {
 install_deb() {
     local pkg="$1"
     log "Installing deb: $pkg"
-    sudo dpkg -i "$pkg" >> "$LOG_FILE" 2>&1 || \
-        sudo apt-get install -f -y >> "$LOG_FILE" 2>&1 || \
+    sudo_run dpkg -i "$pkg" >> "$LOG_FILE" 2>&1 || \
+        sudo_run apt-get install -f -y >> "$LOG_FILE" 2>&1 || \
         fatal "Failed to install DEB package"
 }
 
@@ -494,8 +494,8 @@ install_rpm() {
     local pkg="$1"
     log "Installing rpm: $pkg"
     case "$INSTALLER_TYPE" in
-        rpm_dnf)    sudo dnf install -y "$pkg" >> "$LOG_FILE" 2>&1 || fatal "Failed to install RPM (dnf)" ;;
-        rpm_zypper) sudo zypper install -y "$pkg" >> "$LOG_FILE" 2>&1 || fatal "Failed to install RPM (zypper)" ;;
+        rpm_dnf)    sudo_run dnf install -y "$pkg" >> "$LOG_FILE" 2>&1 || fatal "Failed to install RPM (dnf)" ;;
+        rpm_zypper) sudo_run zypper install -y "$pkg" >> "$LOG_FILE" 2>&1 || fatal "Failed to install RPM (zypper)" ;;
     esac
 }
 
@@ -565,11 +565,11 @@ install_tgz() {
     [ -d "$tmp/unified-conky-control-center-${VERSION_NUM}-Linux_x86_64/usr/local" ] && \
         src="$tmp/unified-conky-control-center-${VERSION_NUM}-Linux_x86_64/usr/local"
 
-    sudo cp -r "$src/"* "$INSTALL_PREFIX/" >> "$LOG_FILE" 2>&1 || \
+    sudo_run cp -r "$src/"* "$INSTALL_PREFIX/" >> "$LOG_FILE" 2>&1 || \
         fatal "Failed to copy files to $INSTALL_PREFIX"
 
     command -v update-desktop-database &>/dev/null && \
-        sudo update-desktop-database "$INSTALL_PREFIX/share/applications" 2>/dev/null || true
+        sudo_run update-desktop-database "$INSTALL_PREFIX/share/applications" 2>/dev/null || true
 
     rm -rf "$tmp"
 }
@@ -590,19 +590,19 @@ install_local_build() {
             deb)
                 if ! dpkg -l | grep -q build-essential 2>/dev/null; then
                     info "Installing build-essential..."
-                    sudo apt-get install -y build-essential >> "$LOG_FILE" 2>&1 || true
+                    sudo_run apt-get install -y build-essential >> "$LOG_FILE" 2>&1 || true
                 fi
                 ;;
             arch)
                 if ! pacman -Q base-devel &>/dev/null; then
                     info "Installing base-devel..."
-                    sudo pacman -S --noconfirm --needed base-devel >> "$LOG_FILE" 2>&1 || true
+                    sudo_run pacman -S --noconfirm --needed base-devel >> "$LOG_FILE" 2>&1 || true
                 fi
                 ;;
             rpm_dnf)
                 if ! rpm -q gcc-c++ &>/dev/null; then
                     info "Installing development tools..."
-                    sudo dnf groupinstall -y "Development Tools" >> "$LOG_FILE" 2>&1 || true
+                    sudo_run dnf groupinstall -y "Development Tools" >> "$LOG_FILE" 2>&1 || true
                 fi
                 ;;
         esac
@@ -619,7 +619,7 @@ install_local_build() {
     
     log "Installing from local build"
     cd build
-    sudo cmake --install . --prefix "$INSTALL_PREFIX" >> "$LOG_FILE" 2>&1 || \
+    sudo_run cmake --install . --prefix "$INSTALL_PREFIX" >> "$LOG_FILE" 2>&1 || \
         fatal "cmake --install failed — check $LOG_FILE"
     cd ..
 }
@@ -670,31 +670,31 @@ do_uninstall() {
         deb)
             if dpkg -l | grep -q unified-conky-control-center 2>/dev/null; then
                 gui_progress_update 40 "Removing via apt..."
-                sudo apt-get remove -y unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
+                sudo_run apt-get remove -y unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
             fi ;;
         rpm_dnf)
             if rpm -q unified-conky-control-center &>/dev/null; then
                 gui_progress_update 40 "Removing via dnf..."
-                sudo dnf remove -y unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
+                sudo_run dnf remove -y unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
             fi ;;
         rpm_zypper)
             if rpm -q unified-conky-control-center &>/dev/null; then
                 gui_progress_update 40 "Removing via zypper..."
-                sudo zypper remove -y unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
+                sudo_run zypper remove -y unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
             fi ;;
         arch)
             if pacman -Q unified-conky-control-center &>/dev/null; then
                 gui_progress_update 40 "Removing via pacman..."
-                sudo pacman -R --noconfirm unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
+                sudo_run pacman -R --noconfirm unified-conky-control-center >> "$LOG_FILE" 2>&1 || true
             fi ;;
     esac
 
     # Manual cleanup (catches tgz installs and leftovers)
     gui_progress_update 60 "Removing files..."
-    sudo rm -f "$INSTALL_PREFIX/bin/$APP_NAME"
-    sudo rm -f "$INSTALL_PREFIX/share/applications/unified-conky-control-center.desktop"
-    sudo rm -f "$INSTALL_PREFIX/share/icons/hicolor/256x256/apps/$APP_NAME.png"
-    sudo rm -rf "$INSTALL_PREFIX/share/$APP_NAME"
+    sudo_run rm -f "$INSTALL_PREFIX/bin/$APP_NAME"
+    sudo_run rm -f "$INSTALL_PREFIX/share/applications/unified-conky-control-center.desktop"
+    sudo_run rm -f "$INSTALL_PREFIX/share/icons/hicolor/256x256/apps/$APP_NAME.png"
+    sudo_run rm -rf "$INSTALL_PREFIX/share/$APP_NAME"
     rm -f "$HOME/.local/share/applications/unified-conky-control-center.desktop"
 
     if [ "$keep_config" = false ] && [ -d "$CONFIG_DIR" ]; then
@@ -822,9 +822,9 @@ do_fresh_install() {
 
     gui_progress_update 90 "Updating system databases..."
     command -v gtk-update-icon-cache &>/dev/null && \
-        sudo gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
+        sudo_run gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
     command -v update-desktop-database &>/dev/null && \
-        sudo update-desktop-database 2>/dev/null || true
+        sudo_run update-desktop-database 2>/dev/null || true
 
     gui_progress_update 100 "Installation complete"
     gui_progress_end
