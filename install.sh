@@ -15,11 +15,7 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-<<<<<<< HEAD
-VERSION="v1.0.38"
-=======
-VERSION="v1.0.38"
->>>>>>> master
+VERSION="v1.0.30"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
@@ -204,7 +200,7 @@ gui_confirm() {
         yad)     yad --question --title="$title" --text="$msg" --width=400 --button="Yes:0" --button="No:1" ;;
         cli)
             echo -e "\n${BOLD}$title${NC}\n$msg"
-            read -rp "Confirm? [y/N]: " resp
+            read -rp "Confirm? [y/N]: " resp </dev/tty
             [[ "$resp" =~ ^[Yy]$ ]]
             ;;
     esac
@@ -273,7 +269,7 @@ gui_input() {
         yad)     yad --entry --title="$title" --text="$msg" --entry-text="$default" --button="OK:0" --button="Cancel:1" ;;
         cli)
             echo -e "${BOLD}$title${NC}\n$msg"
-            read -rp "[$default]: " val
+            read -rp "[$default]: " val </dev/tty
             echo "${val:-$default}"
             ;;
     esac
@@ -308,17 +304,16 @@ gui_menu() {
             echo -e "${BOLD}$title${NC}\n$msg"
             local i=1
             local -a opts=()
-            while [ $# -gt 0 ]; do
-                # zenity radiolist format: TRUE/FALSE label value...
-                # skip TRUE/FALSE tokens
-                local tok="$1"; shift
-                if [[ "$tok" != "TRUE" && "$tok" != "FALSE" ]]; then
-                    echo "  $i) $tok"
-                    opts+=("$tok")
-                    ((i++))
-                fi
+            while [ $# -ge 3 ]; do
+                local state="$1"
+                local tag="$2"
+                local item="$3"
+                shift 3
+                echo "  $i) $item"
+                opts+=("$tag")
+                ((i++))
             done
-            read -rp "Select [1]: " sel
+            read -rp "Select [1]: " sel </dev/tty
             echo "${opts[$((${sel:-1}-1))]}"
             ;;
     esac
