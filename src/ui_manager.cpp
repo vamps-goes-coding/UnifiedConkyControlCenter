@@ -1864,7 +1864,6 @@ QWidget* UIManager::create_theme_creator_tab(QWidget* parent) {
     
     mode_tabs->addTab(csv_page, "CSV Import");
     
-<<<<<<< HEAD
     // Direct CSV Paste
     QWidget* paste_page = new QWidget();
     QVBoxLayout* paste_layout = new QVBoxLayout(paste_page);
@@ -1920,8 +1919,6 @@ QWidget* UIManager::create_theme_creator_tab(QWidget* parent) {
 
     mode_tabs->addTab(paste_page, "Direct CSV Paste");
 
-=======
->>>>>>> master
     main_layout->addWidget(mode_tabs);
     return tab;
 }
