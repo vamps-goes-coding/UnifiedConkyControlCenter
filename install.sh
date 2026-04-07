@@ -32,6 +32,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
@@ -121,6 +122,28 @@ detect_gui_toolkit() {
     esac
 
     log "GUI toolkit selected: $GUI_TOOLKIT"
+
+    # Safety Check: Ensure graphical authentication is available in GUI environments.
+    # Instead of aborting, we wait for the user to install a toolkit and re-test.
+    while [ "$GUI_TOOLKIT" = "cli" ] && [ "$DISPLAY_SERVER" != "headless" ]; do
+        if [ -t 0 ]; then
+            # Terminal found: Provide instructions and wait for user to press [Enter] to re-scan.
+            echo -e "${YELLOW}Notice:${NC} No graphical toolkit (zenity, kdialog, or yad) detected."
+            echo -e "These are required for password prompts in GUI environments without a terminal."
+            read -rp "Please install a toolkit, then press [Enter] to re-test, or 'c' to continue in CLI mode: " input </dev/tty
+            [[ "$input" == "c" ]] && break
+        else
+            # Outside terminal: poll every 5 seconds until a toolkit appears.
+            log "No TTY and no GUI toolkit. Polling for zenity/kdialog/yad installation..."
+            sleep 5
+        fi
+
+        # Re-detect toolkits
+        if command -v zenity &>/dev/null; then GUI_TOOLKIT="zenity"; break; fi
+        if command -v kdialog &>/dev/null; then GUI_TOOLKIT="kdialog"; break; fi
+        if command -v yad &>/dev/null; then GUI_TOOLKIT="yad"; break; fi
+    done
+
     info "Using GUI toolkit: $GUI_TOOLKIT (DE: $DETECTED_DE, Display: $DISPLAY_SERVER)"
 }
 
@@ -365,14 +388,11 @@ sudo_run() {
     if [ "$EUID" -eq 0 ]; then
         # Already running as root
         "$@"
-    elif [ "$GUI_TOOLKIT" = "zenity" ] || [ "$GUI_TOOLKIT" = "yad" ]; then
-        zenity --password --title="Sudo Password Required" 2>/dev/null | sudo -S "$@"
-    elif [ "$GUI_TOOLKIT" = "kdialog" ]; then
-        kdialog --password "Enter sudo password:" --title "Sudo Password Required" 2>/dev/null | sudo -S "$@"
-    elif command -v ksshaskpass >/dev/null 2>&1; then
-        SUDO_ASKPASS=$(command -v ksshaskpass) sudo -A "$@"
-    elif command -v ssh-askpass >/dev/null 2>&1; then
-        SUDO_ASKPASS=$(command -v ssh-askpass) sudo -A "$@"
+    fi
+
+    # Use GUI askpass if available and we are not in CLI mode
+    if [ -n "$SUDO_ASKPASS" ] && [ "$GUI_TOOLKIT" != "cli" ]; then
+        sudo -A "$@"
     else
         # Fallback to standard terminal sudo
         sudo "$@"
@@ -547,7 +567,14 @@ PKGEOF
     cp "$tgz" "$tmp/"
 
     cd "$tmp"
-    makepkg -si --noconfirm --force >> "$LOG_FILE" 2>&1 || fatal "Failed to build/install Arch package"
+    # Build the package (syncing dependencies). makepkg will use SUDO_ASKPASS if needed for deps.
+    makepkg -s --noconfirm --force >> "$LOG_FILE" 2>&1 || fatal "Failed to build Arch package"
+    
+    # Install the built package using our controlled sudo_run
+    local pkg_file=$(ls *.pkg.tar.zst 2>/dev/null | head -n 1)
+    [ -n "$pkg_file" ] || fatal "Could not find built Arch package (.pkg.tar.zst)"
+    sudo_run pacman -U --noconfirm "$pkg_file" >> "$LOG_FILE" 2>&1 || fatal "Failed to install built Arch package"
+    
     cd /
     rm -rf "$tmp"
 }
@@ -752,7 +779,7 @@ do_update() {
 do_fresh_install() {
     # --- Welcome ---
     gui_info "Welcome" \
-        "Welcome to the $APP_DISPLAY_NAME installer!\n\nVersion: $VERSION\nThis will install $APP_DISPLAY_NAME on your system."
+        "Welcome to the $APP_DISPLAY_NAME installer!\n\nVersion: $VERSION\nThis will install $APP_DISPLAY_NAME on your system.\n\nNote: If running outside a terminal, ensure Zenity or KDialog is installed for password prompts."
 
     # --- Privileges ---
     # Sudo will prompt on demand when actually needed
@@ -876,6 +903,23 @@ do_local_install() {
 }
 
 # =============================================================================
+# AUTHENTICATION HELPER
+# =============================================================================
+setup_askpass() {
+    [ "$GUI_TOOLKIT" = "cli" ] && return
+    
+    local helper="/tmp/${APP_NAME}_askpass_helper"
+    case "$GUI_TOOLKIT" in
+        kdialog) echo 'exec kdialog --password "Sudo Password Required" --title "Unified Conky Control Center" 2>/dev/null' > "$helper" ;;
+        zenity)  echo 'exec zenity --password --title "Sudo Password Required" 2>/dev/null' > "$helper" ;;
+        yad)     echo 'exec yad --password --title "Sudo Password Required" 2>/dev/null' > "$helper" ;;
+    esac
+    chmod +x "$helper"
+    export SUDO_ASKPASS="$helper"
+    trap 'rm -f "$helper"' EXIT
+}
+
+# =============================================================================
 # INTERACTIVE MODE SELECTION (no args given)
 # =============================================================================
 interactive_mode_select() {
@@ -904,6 +948,7 @@ main() {
     log "Args: $*"
 
     detect_gui_toolkit
+    setup_askpass
 
     # Parse args
     local mode=""
