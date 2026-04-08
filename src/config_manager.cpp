@@ -32,7 +32,6 @@ bool ConfigManager::load_config(const fs::path& config_path) {
             auto& app = config["application"];
             app_config_.display_name = app.value("display_name", app_config_.display_name);
             app_config_.internal_name = app.value("internal_name", app_config_.internal_name);
-            app_config_.version = app.value("version", app_config_.version);
             app_config_.organization = app.value("organization", app_config_.organization);
         }
         
@@ -238,7 +237,6 @@ bool ConfigManager::save_config() {
         config["application"] = {
             {"display_name", app_config_.display_name},
             {"internal_name", app_config_.internal_name},
-            {"version", app_config_.version},
             {"organization", app_config_.organization}
         };
         

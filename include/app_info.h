@@ -16,11 +16,7 @@ inline std::string get_internal_name() {
 }
 
 inline std::string get_version() {
-#ifdef APP_VERSION_STR
-    return APP_VERSION_STR;
-#else
-    return ConfigManager::instance().get_version();
-#endif
+    return APP_VERSION_STR; // Remove fallback to ConfigManager
 }
 
 inline std::string get_organization() {
@@ -39,12 +35,7 @@ inline const char* kInternalName() {
 }
 
 inline const char* kVersion() {
-#ifdef APP_VERSION_STR
-    return APP_VERSION_STR;
-#else
-    static std::string v = get_version();
-    return v.c_str();
-#endif
+    return APP_VERSION_STR; // Force compile-time constant
 }
 
 inline const char* kOrganization() {

@@ -14,11 +14,15 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-if(GIT_VERSION)
-    set(APP_VERSION ${GIT_VERSION})
-else()
+# Clean up the tag (remove leading 'v' if present)
+string(REGEX REPLACE "^v" "" APP_VERSION "${GIT_VERSION}")
+
+# If no tag is found, fallback to project version
+if(NOT APP_VERSION)
     set(APP_VERSION ${PROJECT_VERSION})
 endif()
+
+message(STATUS "Building version: ${APP_VERSION}")
 
 # Enable ccache if available to speed up rebuilds across different build directories
 find_program(CCACHE_PROGRAM ccache)
@@ -116,7 +120,7 @@ install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hico
 set(CPACK_PACKAGE_NAME "UnifiedConkyControlCenter")
 set(CPACK_DEBIAN_PACKAGE_NAME "unified-conky-control-center")
 set(CPACK_RPM_PACKAGE_NAME "unified-conky-control-center")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION "${APP_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Unified Conky Control Center")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A unified control center for managing Conky configurations across X11 and Wayland")
 set(CPACK_PACKAGE_DESCRIPTION "Unified Conky Control Center provides a graphical interface to manage, edit, and control Conky panel configurations on both X11 and Wayland display servers.")
