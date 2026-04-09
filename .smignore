@@ -1,0 +1,15 @@
+# Ignore C++ build artifacts
+build/
+bin/
+obj/
+*.o
+*.a
+*.so
+
+# Ignore system/IDE junk
+.cache/
+.vscode/
+.idea/
+
+# Ignore the actual installer temp files
+*_askpass_helper

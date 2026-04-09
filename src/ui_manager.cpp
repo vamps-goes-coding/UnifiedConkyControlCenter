@@ -228,8 +228,6 @@ QWidget* UIManager::create_main_window() {
     main_layout->setSpacing(0);
     
     // Create menu bar
-    QMenuBar* menu_bar = new QMenuBar();
-    QMenu* file_menu = menu_bar->addMenu("&File");
     file_menu->addAction("&Preferences...", [window]() {
         PreferencesDialog dialog(window);
         if (dialog.exec() == QDialog::Accepted) {
@@ -283,10 +281,57 @@ QWidget* UIManager::create_main_window() {
     });
     
     window->setMenuBar(menu_bar);
+
+    // Mode header similar to the Python implementation
+    QHBoxLayout* mode_layout = new QHBoxLayout(mode_header);
     
     // Create tab widget
-    QTabWidget* tab_widget = create_tab_widget(central_widget);
+    QLabel* mode_label = new QLabel("Mode:");
+    mode_label->setStyleSheet("font-weight: bold; font-size: 10pt; color: #f0f6fc;");
+    mode_layout->addWidget(mode_label);
+
+    QPushButton* btn_panel_control = new QPushButton("Panel Control");
+    btn_panel_control->setCheckable(true);
+    btn_panel_control->setChecked(true);
+
+    QPushButton* btn_theme_control = new QPushButton("Theme Control");
+    btn_theme_control->setCheckable(true);
+
+    mode_layout->addWidget(btn_panel_control);
+    mode_layout->addWidget(btn_theme_control);
+    mode_layout->addStretch();
+    main_layout->addWidget(mode_header);
+    
+    // Single level tab widget that we will swap the content of
+    QTabWidget* tab_widget = new QTabWidget(central_widget);
+    tab_widget->setObjectName("mainTabs");
     main_layout->addWidget(tab_widget);
+
+    // Define switching logic
+    auto switch_to_panel_control = [=]() {
+        btn_panel_control->setChecked(true);
+        btn_theme_control->setChecked(false);
+        tab_widget->clear();
+        tab_widget->addTab(create_theme_tab(tab_widget), "Themes");
+        tab_widget->addTab(create_gap_tab(tab_widget), "Gaps");
+        tab_widget->addTab(create_start_stop_tab(tab_widget), "Start/Stop");
+        tab_widget->addTab(create_editor_tab(tab_widget), "Editors");
+    };
+
+    auto switch_to_theme_control = [=]() {
+        btn_panel_control->setChecked(false);
+        btn_theme_control->setChecked(true);
+        tab_widget->clear();
+        tab_widget->addTab(create_theme_creator_tab(tab_widget), "Creator");
+        tab_widget->addTab(create_theme_editor_tab(tab_widget), "Theme Editor");
+        tab_widget->addTab(create_theme_manager_tab(tab_widget), "Theme Manager");
+    };
+
+    QObject::connect(btn_panel_control, &QPushButton::clicked, switch_to_panel_control);
+    QObject::connect(btn_theme_control, &QPushButton::clicked, switch_to_theme_control);
+
+    // Start in Panel Control mode
+    switch_to_panel_control();
     
     // Create status bar at the bottom
     QFrame* status_bar = new QFrame();
@@ -552,30 +597,9 @@ void UIManager::apply_app_theme(const std::string& theme_name) {
 }
 
 // Tab management
-QTabWidget* UIManager::create_tab_widget(QWidget* parent) {
-    QTabWidget* top_tabs = new QTabWidget(parent);
-    top_tabs->setObjectName("mainTabs");
-    
-    // Create Panel Center sub-tabs
-    QTabWidget* panel_center = new QTabWidget();
-    panel_center->setObjectName("panelCenterTabs");
-    panel_center->addTab(create_theme_tab(panel_center), "Themes");
-    panel_center->addTab(create_gap_tab(panel_center), "Gaps");
-    panel_center->addTab(create_start_stop_tab(panel_center), "Start/Stop");
-    panel_center->addTab(create_editor_tab(panel_center), "Editors");
-    
-    // Create Theming Center sub-tabs
-    QTabWidget* theming_center = new QTabWidget();
-    theming_center->setObjectName("themingCenterTabs");
-    theming_center->addTab(create_theme_creator_tab(theming_center), "Creator");
-    theming_center->addTab(create_theme_editor_tab(theming_center), "Theme Editor");
-    theming_center->addTab(create_theme_manager_tab(theming_center), "Theme Manager");
-    
-    // Add sub-tabs to top level
-    top_tabs->addTab(panel_center, "Panel Control");
-    top_tabs->addTab(theming_center, "Theme Control");
-    
-    return top_tabs;
+QTabWidget* UIManager::create_tab_widget(QWidget* /*parent*/) {
+    // This functionality has been moved to create_main_window for mode switching.
+    return nullptr;
 }
 
 void UIManager::add_tab(QTabWidget* tab_widget, QWidget* tab_content, const std::string& tab_name) {
