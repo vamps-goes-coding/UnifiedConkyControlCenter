@@ -3,6 +3,7 @@
 #include "conky_manager.h"
 #include "utils.h"
 #include "config_parser.h"
+#include "config_manager.h"
 #include "theme_manager.h"
 #include "in_app_editor.h"
 #include "preferences_dialog.h"
@@ -228,6 +229,8 @@ QWidget* UIManager::create_main_window() {
     main_layout->setSpacing(0);
     
     // Create menu bar
+    QMenuBar* menu_bar = new QMenuBar();
+    QMenu* file_menu = menu_bar->addMenu("&File");
     file_menu->addAction("&Preferences...", [window]() {
         PreferencesDialog dialog(window);
         if (dialog.exec() == QDialog::Accepted) {
@@ -283,6 +286,15 @@ QWidget* UIManager::create_main_window() {
     window->setMenuBar(menu_bar);
 
     // Mode header similar to the Python implementation
+    QFrame* mode_header = new QFrame();
+    mode_header->setObjectName("modeHeader");
+    mode_header->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
+    mode_header->setStyleSheet(
+        "QFrame#modeHeader { "
+        "  background-color: #24292e; "
+        "  border-bottom: 1px solid #444c56; "
+        "}"
+    );
     QHBoxLayout* mode_layout = new QHBoxLayout(mode_header);
     
     // Create tab widget

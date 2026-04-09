@@ -25,8 +25,6 @@ PreferencesDialog::PreferencesDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("Preferences");
     setMinimumSize(700, 550);
     setupUI();
-    // Initialize appNameEdit here, as it's a member variable
-    appNameEdit = new QLineEdit();
     loadCurrentConfig();
 }
 
@@ -117,6 +115,7 @@ void PreferencesDialog::setupUI() {
     // --- App Info Tab ---
     auto* infoTab = new QWidget();
     auto* infoLayout = new QVBoxLayout(infoTab);
+    appNameEdit = new QLineEdit();
     infoLayout->addWidget(new QLabel("Application Display Name:"));
     infoLayout->addWidget(appNameEdit);
     infoLayout->addStretch();
@@ -250,6 +249,7 @@ void PreferencesDialog::setupUI() {
 
     // Add all tabs
     tabs->addTab(pathsTab, "Paths");
+    tabs->addTab(infoTab, "General");
     tabs->addTab(panelsTab, "Start Mains");
     tabs->addTab(editorsTab, "Editors");
 
@@ -337,6 +337,9 @@ void PreferencesDialog::saveAndAccept() {
     // Update Paths
     config.set_conky_config_path(conkyPathEdit->text().toStdString());
     config.set_themes_path(themesPathEdit->text().toStdString());
+
+    // Update General
+    config.get_application_config().display_name = appNameEdit->text().toStdString();
 
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();

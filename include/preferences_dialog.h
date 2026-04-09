@@ -56,6 +56,9 @@ private:
     // Theme settings
     QLineEdit* themeExtensionEdit;
     QLineEdit* currentThemeFileEdit;
+
+    // General settings
+    QLineEdit* appNameEdit;
 };
 
 #endif // PREFERENCES_DIALOG_H
