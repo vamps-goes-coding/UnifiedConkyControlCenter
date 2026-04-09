@@ -124,25 +124,16 @@ detect_gui_toolkit() {
     log "GUI toolkit selected: $GUI_TOOLKIT"
 
     # Safety Check: Ensure graphical authentication is available in GUI environments.
-    # Instead of aborting, we wait for the user to install a toolkit and re-test.
-    while [ "$GUI_TOOLKIT" = "cli" ] && [ "$DISPLAY_SERVER" != "headless" ]; do
-        if [ -t 0 ]; then
-            # Terminal found: Provide instructions and wait for user to press [Enter] to re-scan.
-            echo -e "${YELLOW}Notice:${NC} No graphical toolkit (zenity, kdialog, or yad) detected."
-            echo -e "These are required for password prompts in GUI environments without a terminal."
-            read -rp "Please install a toolkit, then press [Enter] to re-test, or 'c' to continue in CLI mode: " input </dev/tty
-            [[ "$input" == "c" ]] && break
+    if [ "$GUI_TOOLKIT" = "cli" ] && [ "$DISPLAY_SERVER" != "headless" ]; then
+        if ! [ -t 0 ]; then
+            # No TTY and no GUI toolkit: We cannot prompt for sudo.
+            fatal "No graphical toolkit (zenity, kdialog, or yad) detected and no terminal found. One of these is required for password prompts in a GUI environment."
         else
-            # Outside terminal: poll every 5 seconds until a toolkit appears.
-            log "No TTY and no GUI toolkit. Polling for zenity/kdialog/yad installation..."
-            sleep 5
+            # Terminal found but no GUI toolkit: Inform the user but allow CLI fallback.
+            warn "No graphical toolkit (zenity, kdialog, or yad) detected. Falling back to terminal-based password prompts."
+            echo -e "Note: If you are running this from a desktop shortcut, it may fail unless a toolkit is installed."
         fi
-
-        # Re-detect toolkits
-        if command -v zenity &>/dev/null; then GUI_TOOLKIT="zenity"; break; fi
-        if command -v kdialog &>/dev/null; then GUI_TOOLKIT="kdialog"; break; fi
-        if command -v yad &>/dev/null; then GUI_TOOLKIT="yad"; break; fi
-    done
+    fi
 
     info "Using GUI toolkit: $GUI_TOOLKIT (DE: $DETECTED_DE, Display: $DISPLAY_SERVER)"
 }
@@ -391,10 +382,13 @@ sudo_run() {
     else
         # Use GUI askpass if available and we are not in CLI mode
         if [ -n "$SUDO_ASKPASS" ] && [ "$GUI_TOOLKIT" != "cli" ]; then
+            # The -A flag is critical here to trigger the GUI prompt
             sudo -A "$@"
-        else
-            # Fallback to standard terminal sudo
+        elif [ -t 0 ]; then
+            # Fallback to standard terminal sudo only if a TTY exists
             sudo "$@"
+        else
+            fatal "Sudo access required, but no terminal detected and no GUI toolkit available."
         fi
     fi
 }
