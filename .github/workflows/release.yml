@@ -38,12 +38,12 @@ jobs:
 
       - name: Sync install.sh
         run: |
-          sed -i "s/^VERSION=\"v[0-9]*\.[0-9]*\.[0-9]*\"/VERSION=\"${{ steps.ver.outputs.tag }}\"/" install.sh
+          sed -i 's/^VERSION="v.*"/VERSION="${{ steps.ver.outputs.tag }}"/' install.sh
           echo "install.sh → VERSION=${{ steps.ver.outputs.tag }}"
 
       - name: Sync CMakeLists.txt
         run: |
-          sed -i "s/project(UnifiedConkyControlCenter VERSION [0-9]*\.[0-9]*\.[0-9]*/project(UnifiedConkyControlCenter VERSION ${{ steps.ver.outputs.num }}/" CMakeLists.txt
+          sed -i "s/project(UnifiedConkyControlCenter VERSION [0-9.]*)/project(UnifiedConkyControlCenter VERSION ${{ steps.ver.outputs.num }})/" CMakeLists.txt
           echo "CMakeLists.txt → VERSION=${{ steps.ver.outputs.num }}"
 
       - name: Commit synced versions back to master
@@ -199,55 +199,16 @@ jobs:
           files: release-files/*
           body: |
             ## Release Notes
-            
-            This release includes packages for multiple Linux distributions:
+            This release is optimized for **CachyOS** and other Arch-based distributions using KDE Plasma 6.
             
             ### Installers
-            - **DEB** (Debian 12+, Ubuntu 22.04+): `*-Linux-x86_64.deb`
-            - **RPM** (Fedora, RHEL, CentOS): `*-Linux-x86_64.rpm`
-            - **Arch Linux** (Arch, Manjaro, EndeavourOS): Use the provided `PKGBUILD` file
-            - **TGZ** (Generic Linux): `*-Linux-x86_64.tar.gz`
-            
-            ### Installation Instructions
-            
-            **Ubuntu/Debian:**
-            ```bash
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.deb
-            sudo apt-get install ./UnifiedConkyControlCenter-*.deb
-            ```
-            
-            **Fedora/RHEL/CentOS:**
-            ```bash
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.rpm
-            sudo dnf install ./UnifiedConkyControlCenter-*.rpm
-            ```
-            
-            **Arch Linux:**
-            ```bash
-            # Download PKGBUILD and source
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/PKGBUILD
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.tar.gz
-            
-            # Build and install
-            makepkg -si
-            ```
-            
-            **Generic Linux (TGZ):**
-            ```bash
-            wget https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/${{ github.ref_name }}/UnifiedConkyControlCenter-${{ github.ref_name }}-Linux-x86_64.tar.gz
-            mkdir -p ~/.local
-            tar xzf UnifiedConkyControlCenter-*.tar.gz -C ~/.local
-            ~/.local/usr/local/bin/UnifiedConkyControlCenter
-            ```
+            - **DEB** (Ubuntu 24.04+): `*-Linux-x86_64.deb`
+            - **RPM** (Fedora): `*-Linux-x86_64.rpm`
+            - **Arch Linux**: Use the `PKGBUILD` and `tar.gz`
             
             **Using Smart Installer Script:**
             ```bash
-            curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash
-            ```
-            
-            Or specify a version:
-            ```bash
-            curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash -s -- --version ${{ github.ref_name }}
+            curl -sSL [https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh](https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh) | sudo bash
             ```
           draft: false
           prerelease: false
