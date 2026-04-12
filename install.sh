@@ -12,7 +12,7 @@ set -e
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.0.43"
+VERSION="v1.0.44"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
