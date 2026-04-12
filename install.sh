@@ -6,9 +6,6 @@
 # =============================================================================
 
 set -e
-export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
 
 # =============================================================================
 # CONFIG — change version here only, nowhere else
@@ -52,8 +49,12 @@ fatal() { error "$1"; gui_error "$1"; exit 1; }
 detect_display_server() {
     if [ -n "$WAYLAND_DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "wayland" ]; then
         DISPLAY_SERVER="wayland"
+        # Ensure Qt tools (like kdialog) use Wayland platform if on Wayland
+        export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
     elif [ -n "$DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "x11" ]; then
         DISPLAY_SERVER="x11"
+        # Ensure Qt tools use XCB on X11
+        export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
     else
         DISPLAY_SERVER="headless"
     fi
@@ -902,15 +903,18 @@ do_local_install() {
 setup_askpass() {
     [ "$GUI_TOOLKIT" = "cli" ] && return
     
-    local helper="/tmp/${APP_NAME}_askpass_helper"
+    local helper="/tmp/${APP_NAME}_askpass_$(id -u)"
+    # Create the helper script with a proper shebang so sudo -A can execute it
+    echo '#!/bin/bash' > "$helper"
     case "$GUI_TOOLKIT" in
-        kdialog) echo 'exec kdialog --password "Sudo Password Required" --title "Unified Conky Control Center" 2>/dev/null' > "$helper" ;;
-        zenity)  echo 'exec zenity --password --title "Sudo Password Required" 2>/dev/null' > "$helper" ;;
-        yad)     echo 'exec yad --password --title "Sudo Password Required" 2>/dev/null' > "$helper" ;;
+        kdialog) echo 'kdialog --password "Sudo Password Required" --title "Unified Conky Control Center" 2>/dev/null' >> "$helper" ;;
+        zenity)  echo 'zenity --password --title "Sudo Password Required" 2>/dev/null' >> "$helper" ;;
+        yad)     echo 'yad --password --title "Sudo Password Required" 2>/dev/null' >> "$helper" ;;
     esac
     chmod +x "$helper"
     export SUDO_ASKPASS="$helper"
-    trap 'rm -f "$helper"' EXIT
+    export SSH_ASKPASS="$helper"
+    trap 'rm -f "$helper" 2>/dev/null' EXIT
 }
 
 # =============================================================================
