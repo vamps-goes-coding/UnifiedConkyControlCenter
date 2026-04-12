@@ -12,7 +12,7 @@ set -e
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.0.43"
+VERSION="v1.0.44"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
@@ -453,8 +453,7 @@ install_dependencies() {
         arch)
             gui_progress_update 30 "Running pacman..."
             command -v conky &>/dev/null || sudo_run pacman -S --noconfirm conky >> "$LOG_FILE" 2>&1
-            sudo_run pacman -S --noconfirm --needed qt6-base 2>/dev/null || \
-                sudo_run pacman -S --noconfirm --needed qt5-base >> "$LOG_FILE" 2>&1 || true
+            sudo_run pacman -S --noconfirm --needed qt6-base qt6-wayland >> "$LOG_FILE" 2>&1 || true
             ;;
     esac
 
@@ -532,31 +531,32 @@ pkgdesc="A unified control center for managing Conky configurations across X11 a
 arch=(x86_64)
 url="https://github.com/${GITHUB_USER}/${GITHUB_REPO}"
 license=(GPL)
-depends=(conky)
-optdepends=('qt6-base: Qt6 runtime' 'qt5-base: Qt5 runtime')
+depends=(conky qt6-base qt6-wayland)
 source=("${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz")
 sha256sums=(SKIP)
 
 package() {
-    # Dynamically find the extracted directory by looking for the 'bin' folder
-    local bin_dir=\$(find "\${srcdir}" -type d -name "bin" | head -n 1)
-    if [ -z "\$bin_dir" ]; then
-        echo "Error: Could not find bin directory in extracted source"
-        exit 1
-    fi
-    local src=\$(dirname "\$bin_dir")
+    # Find the binary wherever it was extracted
+    local exe_path=\$(find "\${srcdir}" -type f -name "${APP_NAME}" | head -n 1)
+    [ -n "\$exe_path" ] || { echo "Error: Could not find binary ${APP_NAME}"; exit 1; }
+    
+    local bin_dir=\$(dirname "\$exe_path")
+    local src_root=\$(dirname "\$bin_dir")
 
-    install -Dm755 "\$src/bin/UnifiedConkyControlCenter" "\${pkgdir}/usr/bin/UnifiedConkyControlCenter"
+    # Install binary
+    install -Dm755 "\$exe_path" "\${pkgdir}/usr/bin/UnifiedConkyControlCenter"
 
-    [ -f "\$src/share/applications/conky-control-center.desktop" ] && \
-        install -Dm644 "\$src/share/applications/conky-control-center.desktop" \
+    # Install Desktop Entry
+    [ -f "\$src_root/share/applications/conky-control-center.desktop" ] && \
+        install -Dm644 "\$src_root/share/applications/conky-control-center.desktop" \
             "\${pkgdir}/usr/share/applications/conky-control-center.desktop"
 
-    [ -d "\$src/share/UnifiedConkyControlCenter" ] && \
-        cp -r "\$src/share/UnifiedConkyControlCenter" "\${pkgdir}/usr/share/"
+    # Install Resources and Icons
+    [ -d "\$src_root/share/${APP_NAME}" ] && \
+        cp -r "\$src_root/share/${APP_NAME}" "\${pkgdir}/usr/share/"
 
-    [ -f "\$src/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" ] && \
-        install -Dm644 "\$src/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" \
+    [ -f "\$src_root/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" ] && \
+        install -Dm644 "\$src_root/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" \
             "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png"
 }
 PKGEOF

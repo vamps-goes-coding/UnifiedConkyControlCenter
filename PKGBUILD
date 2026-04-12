@@ -1,6 +1,6 @@
 # Maintainer: Unified Conky Control Center Team
 pkgname=unified-conky-control-center
-pkgver=1.0.38
+pkgver=1.0.44
 pkgrel=1
 pkgdesc="A unified control center for managing Conky configurations across X11 and Wayland"
 arch=('x86_64')

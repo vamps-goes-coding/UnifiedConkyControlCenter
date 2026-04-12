@@ -42,7 +42,7 @@ We provide ready-to-install packages for all major distributions:
 - **Ubuntu/Debian**: `sudo dpkg -i unified-conky-control-center-1.0.28-Linux-x86_64.deb`
 - **Fedora/RHEL/CentOS**: `sudo dnf install ./unified-conky-control-center-1.0.28-Linux-x86_64.rpm`
 - **Arch Linux**: Download `PKGBUILD` and run `makepkg -si`
-- **Any Linux**: Extract the generic archive: `tar xzf unified-conky-control-center-1.0.28-Linux-x86_64.tar.gz`
+- **Any Linux**: Extract the generic archive: `tar xzf unified-conky-control-center-1.0.44-Linux-x86_64.tar.gz`
 - **Smart Installer**: Detects your OS and installs automatically:
   ```bash
   curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | sudo bash
