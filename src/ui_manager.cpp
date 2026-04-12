@@ -1540,7 +1540,8 @@ if (ThemeManager::apply_global_theme(theme.toStdString(), category)) {
     });
     
     QObject::connect(refresh_btn, &QPushButton::clicked, [cat_list, theme_list, panel_selector]() {
-        refresh_categories(cat_list, theme_list, true);
+        ThemeManager::invalidate_cache();
+        refresh_categories(cat_list, theme_list, false);
         refresh_panels(panel_selector);
     });
     
