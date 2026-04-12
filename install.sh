@@ -51,6 +51,8 @@ detect_display_server() {
         DISPLAY_SERVER="wayland"
         # Ensure Qt tools (like kdialog) use Wayland platform if on Wayland
         export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
+        export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+        export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
     elif [ -n "$DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "x11" ]; then
         DISPLAY_SERVER="x11"
         # Ensure Qt tools use XCB on X11
@@ -535,13 +537,14 @@ optdepends=('qt6-base: Qt6 runtime' 'qt5-base: Qt5 runtime')
 source=("${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz")
 sha256sums=(SKIP)
 
-prepare() {
-    cd "\${srcdir}"
-    tar -xzf "${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz" 2>/dev/null || true
-}
-
 package() {
-    local src="\${srcdir}/UnifiedConkyControlCenter-${VERSION_NUM}-Linux-x86_64"
+    # Dynamically find the extracted directory by looking for the 'bin' folder
+    local bin_dir=\$(find "\${srcdir}" -type d -name "bin" | head -n 1)
+    if [ -z "\$bin_dir" ]; then
+        echo "Error: Could not find bin directory in extracted source"
+        exit 1
+    fi
+    local src=\$(dirname "\$bin_dir")
 
     install -Dm755 "\$src/bin/UnifiedConkyControlCenter" "\${pkgdir}/usr/bin/UnifiedConkyControlCenter"
 
@@ -581,11 +584,10 @@ install_tgz() {
 
     tar -xzf "$pkg" -C "$tmp" >> "$LOG_FILE" 2>&1 || fatal "Failed to extract archive"
 
-    # Try common extract layouts
+    # Dynamically locate the source root (containing bin/ and share/)
+    local bin_dir=$(find "$tmp" -type d -name "bin" | head -n 1)
     local src="$tmp"
-    [ -d "$tmp/usr/local" ] && src="$tmp/usr/local"
-    [ -d "$tmp/unified-conky-control-center-${VERSION_NUM}-Linux_x86_64/usr/local" ] && \
-        src="$tmp/unified-conky-control-center-${VERSION_NUM}-Linux_x86_64/usr/local"
+    [ -n "$bin_dir" ] && src=$(dirname "$bin_dir")
 
     sudo_run cp -r "$src/"* "$INSTALL_PREFIX/" >> "$LOG_FILE" 2>&1 || \
         fatal "Failed to copy files to $INSTALL_PREFIX"
@@ -907,14 +909,14 @@ setup_askpass() {
     # Create the helper script with a proper shebang so sudo -A can execute it
     echo '#!/bin/bash' > "$helper"
     case "$GUI_TOOLKIT" in
-        kdialog) echo 'kdialog --password "Sudo Password Required" --title "Unified Conky Control Center" 2>/dev/null' >> "$helper" ;;
-        zenity)  echo 'zenity --password --title "Sudo Password Required" 2>/dev/null' >> "$helper" ;;
-        yad)     echo 'yad --password --title "Sudo Password Required" 2>/dev/null' >> "$helper" ;;
+        kdialog) echo 'exec kdialog --password "Sudo Password Required" --title "Unified Conky Control Center" 2>/dev/null' >> "$helper" ;;
+        zenity)  echo 'exec zenity --password --title "Sudo Password Required" 2>/dev/null' >> "$helper" ;;
+        yad)     echo 'exec yad --password --title "Sudo Password Required" 2>/dev/null' >> "$helper" ;;
     esac
     chmod +x "$helper"
     export SUDO_ASKPASS="$helper"
     export SSH_ASKPASS="$helper"
-    trap 'rm -f "$helper" 2>/dev/null' EXIT
+    trap 'rm -f "$helper" 2>/dev/null; trap - EXIT; exit' EXIT INT TERM
 }
 
 # =============================================================================
