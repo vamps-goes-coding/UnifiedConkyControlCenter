@@ -7,16 +7,19 @@
 
 set -e
 
+# Check for Git merge conflict markers
+if grep -qE "^<<<<<<< |^=======|^>>>>>>> " "$0"; then
+    echo "ERROR: This script contains Git merge conflict markers."
+    echo "Please resolve the conflicts in the source code before running the installer."
+    exit 1
+fi
+
 # =============================================================================
 # CONFIG — change version here only, nowhere else
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-<<<<<<< HEAD
 VERSION="v1.0.45"
-=======
-VERSION="v1.0.45"
->>>>>>> a27e201a4616bd4a7957daab3725b0480cc0d95b
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
@@ -576,7 +579,7 @@ PKGEOF
     local pkg_file=$(ls *.pkg.tar.zst 2>/dev/null | head -n 1)
     [ -n "$pkg_file" ] || fatal "Could not find built Arch package (.pkg.tar.zst)"
     sudo_run pacman -U --noconfirm "$pkg_file" >> "$LOG_FILE" 2>&1 || fatal "Failed to install built Arch package"
-    
+
     cd /
     rm -rf "$tmp"
 }
@@ -586,15 +589,20 @@ install_tgz() {
     local tmp=$(mktemp -d)
     log "Installing tgz to $INSTALL_PREFIX"
 
-    tar -xzf "$pkg" -C "$tmp" >> "$LOG_FILE" 2>&1 || fatal "Failed to extract archive"
-
-    # Dynamically locate the source root (containing bin/ and share/)
-    local bin_dir=$(find "$tmp" -type d -name "bin" | head -n 1)
-    local src="$tmp"
-    [ -n "$bin_dir" ] && src=$(dirname "$bin_dir")
-
-    sudo_run cp -r "$src/"* "$INSTALL_PREFIX/" >> "$LOG_FILE" 2>&1 || \
-        fatal "Failed to copy files to $INSTALL_PREFIX"
+    if tar -xzf "$pkg" -C "$tmp" >> "$LOG_FILE" 2>&1; then
+        # CPack usually creates a top-level directory inside the archive
+        # Dynamically locate the source root (containing bin/ and share/)
+        local bin_dir=$(find "$tmp" -type d -name "bin" | head -n 1)
+        if [ -n "$bin_dir" ]; then
+            local src=$(dirname "$bin_dir")
+            sudo_run cp -rn "$src/"* "$INSTALL_PREFIX/" >> "$LOG_FILE" 2>&1 || \
+                fatal "Failed to copy files to $INSTALL_PREFIX"
+        else
+            fatal "Archive structure invalid: Could not find 'bin' directory"
+        fi
+    else
+        fatal "Failed to extract archive: $pkg"
+    fi
 
     command -v update-desktop-database &>/dev/null && \
         sudo_run update-desktop-database "$INSTALL_PREFIX/share/applications" 2>/dev/null || true
@@ -919,7 +927,9 @@ setup_askpass() {
     esac
     chmod +x "$helper"
     export SUDO_ASKPASS="$helper"
+    # Many installers and build tools check SSH_ASKPASS as a fallback
     export SSH_ASKPASS="$helper"
+    export DISPLAY="${DISPLAY:-:0}"
     trap 'rm -f "$helper" 2>/dev/null; trap - EXIT; exit' EXIT INT TERM
 }
 
