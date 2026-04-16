@@ -543,12 +543,17 @@ source=("${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz")
 sha256sums=(SKIP)
 
 package() {
-    # Find the binary wherever it was extracted
-    local exe_path=\$(find "\${srcdir}" -type f -name "${APP_NAME}" | head -n 1)
-    [ -n "\$exe_path" ] || { echo "Error: Could not find binary ${APP_NAME}"; exit 1; }
-    
+    # Find the binary wherever it was extracted - search case-insensitively and look for executable
+    local exe_path=\$(find "\${srcdir}" -type f -executable -iname "${APP_NAME}" | head -n 1)
+    if [ -z "\$exe_path" ]; then
+        # Fallback: find any file named similarly if executable bit is missing
+        exe_path=\$(find "\${srcdir}" -type f -iname "${APP_NAME}" | head -n 1)
+    fi
+    [ -n "\$exe_path" ] || { echo "Error: Could not find binary matching ${APP_NAME} in \${srcdir}"; ls -R "\${srcdir}"; exit 1; }
+
+    # Detect the source root by finding where 'bin' or 'share' lives
     local bin_dir=\$(dirname "\$exe_path")
-    local src_root=\$(dirname "\$bin_dir")
+    local src_root=\$(cd "\$bin_dir/.." && pwd)
 
     # Install binary
     install -Dm755 "\$exe_path" "\${pkgdir}/usr/bin/UnifiedConkyControlCenter"
