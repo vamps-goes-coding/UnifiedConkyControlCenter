@@ -19,7 +19,7 @@ fi
 # =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.0.45"
+VERSION="v1.0.46"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"

@@ -14,7 +14,7 @@ class GitManagerGUI:
         self.root.geometry("900x700")
         
         # Set the repository path
-        self.repo_path = "/mnt/storage/ProjectFile/UnifiedConkyControlCenter"
+        self.repo_path = os.getcwd()
         self.github_user = "vamps-goes-coding"
         self.github_repo = "UnifiedConkyControlCenter"
         
@@ -278,17 +278,30 @@ class GitManagerGUI:
         tag = self.new_tag_var.get().strip()
         if not tag:
             # Try to get the latest local tag if entry is empty
-            tag = self.run_git(["describe", "--tags", "--abbrev=0"])
-            if tag:
-                tag = tag.strip()
+            tag_output = self.run_git(["describe", "--tags", "--abbrev=0"])
+            if tag_output:
+                tag = tag_output.strip()
             else:
                 messagebox.showwarning("Input Needed", "Enter a tag to push or create one first.")
                 return
 
-        if messagebox.askyesno("Confirm Push", f"Push tag '{tag}' to GitHub?"):
-            if self.run_git(["push", "origin", tag]) is not None:
-                messagebox.showinfo("Success", f"Tag {tag} pushed to GitHub!")
-                self.refresh_version_data()
+        if messagebox.askyesno("Confirm Push", f"Push tag \'{tag}\' to GitHub?"):
+            # Ensure local changes are committed before pushing a new tag
+            status_output = self.run_git(["status", "--porcelain"])
+            if status_output and status_output.strip():
+                messagebox.showwarning("Uncommitted Changes", "Please commit or stash your changes before pushing a tag.")
+                return
+
+            # Push commits and then the tag
+            if self.run_git(["push", "origin", "HEAD"]) is not None:
+                if self.run_git(["push", "origin", tag]) is not None:
+                    messagebox.showinfo("Success", f"Tag {tag} pushed to GitHub!")
+                    self.refresh_version_data()
+                else:
+                    messagebox.showerror("Error", f"Failed to push tag {tag} to GitHub.")
+            else:
+                messagebox.showerror("Error", "Failed to push commits to origin before tagging.")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -297,13 +310,13 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         root.withdraw()
         prompt = sys.argv[1]
-        passphrase = simpledialog.askstring("Git Credentials", prompt, show='*')
+        passphrase = simpledialog.askstring("Git Credentials", prompt, show=\'*\')
         if passphrase is not None:
             print(passphrase)
         sys.exit(0)
 
     # Apply a slightly more modern style
     style = ttk.Style()
-    style.theme_use('clam')
+    style.theme_use(\'clam\')
     app = GitManagerGUI(root)
     root.mainloop()

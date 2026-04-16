@@ -63,6 +63,7 @@ testing-guild.md
 memory_bank/
 run-tests.sh
 test-local.sh
+git_helper.py
 *.md
 !README.md
 
