@@ -6,6 +6,7 @@ import json
 import urllib.request
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, simpledialog
+import re # Import re module for regex operations
 
 class GitManagerGUI:
     def __init__(self, root):
@@ -271,8 +272,100 @@ class GitManagerGUI:
             
         args = ["tag", "-a", tag, "-m", msg if msg else f"Release {tag}"]
         if self.run_git(args) is not None:
-            messagebox.showinfo("Success", f"Local tag {tag} created.")
-            self.refresh_version_data()
+                messagebox.showinfo("Success", f"Local tag {tag} created.")
+                self.update_version_file(tag) # Update version files after tag creation
+                self.refresh_version_data()
+
+    def update_source_code_version(self):
+        new_version = self.new_tag_var.get().strip()
+        if not new_version:
+            self.log_message("Error: New tag version is empty. Cannot update source code files.", "red")
+            return
+
+        # Define files and their regex patterns for version strings
+        version_files = [
+            ("CMakeLists.txt", r"(VERSION\s+)(\d+\.\d+\.\d+)", 2), # Group 2 is the version number
+            ("install.sh", r"(VERSION=\"v)(\d+\.\d+\.\d+)\")", 2), # Group 2 is the version number
+            ("PKGBUILD", r"(pkgver=)(\d+\.\d+\.\d+)", 2), # Group 2 is the version number
+            ("config/app_config.json", r"(\"version\":\s*\")(\d+\.\d+\.\d+)(\")", 2) # Group 2 is the version number
+        ]
+
+        for file_path, pattern, group_to_replace in version_files:
+            full_path = os.path.join(self.repo_path, file_path)
+            if not os.path.exists(full_path):
+                self.log_message(f"Warning: Version file not found: {file_path}", "yellow")
+                continue
+
+            try:
+                with open(full_path, "r") as f:
+                    content = f.read()
+                
+                # Use re.sub to replace the version string
+                # We need to construct the replacement string carefully to keep other parts of the pattern
+                def replacer(match):
+                    # Extract all groups and replace only the specified one
+                    groups = list(match.groups())
+                    groups[group_to_replace - 1] = new_version.lstrip("v") # Remove \'v\' if present for internal files
+                    # Reconstruct the string using original parts and updated version
+                    return "".join(groups)
+
+                new_content, num_replacements = re.subn(pattern, replacer, content, 1) # Only replace first occurrence
+
+                if num_replacements > 0:
+                    with open(full_path, "w") as f:
+                        f.write(new_content)
+                    self.log_message(f"Updated version in {file_path} to {new_version}", "green")
+                else:
+                    self.log_message(f"Warning: Version pattern not found in {file_path}. Manual update may be required.", "yellow")
+
+            except Exception as e:
+                self.log_message(f"Error updating version in {file_path}: {e}", "red")
+    def push_tag_to_remote(self):
+        tag = self.new_tag_var.get().strip()
+        if not tag:
+            # Try to get the latest local tag if entry is empty
+            tag_output = self.run_git(["describe", "--tags", "--abbrev=0"])
+            if tag_output:
+                tag = tag_output.strip()
+            else:
+                messagebox.showwarning("Input Needed", "Enter a tag to push or create one first.")
+                return
+
+        if messagebox.askyesno("Confirm Push", f"Push tag \'{tag}\' to GitHub?"):
+            # Ensure local changes are committed before pushing a new tag
+            status_output = self.run_git(["status", "--porcelain"])
+            if status_output and status_output.strip():
+                messagebox.showwarning("Uncommitted Changes", "Please commit or stash your changes before pushing a tag.")
+                return
+
+            # Push commits and then the tag
+            if self.run_git(["push", "origin", "HEAD"]) is not None:
+                if self.run_git(["push", "origin", tag]) is not None:
+                    messagebox.showinfo("Success", f"Tag {tag} pushed to GitHub!")
+                    self.refresh_version_data()
+                else:
+                    messagebox.showerror("Error", f"Failed to push tag {tag} to GitHub.")
+            else:
+                messagebox.showerror("Error", "Failed to push commits to origin before tagging.")
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    
+    # Check if this script is being called by Git/SSH to provide a password
+    if len(sys.argv) > 1:
+        root.withdraw()
+        prompt = sys.argv[1]
+        passphrase = simpledialog.askstring("Git Credentials", prompt, show=\'*\')
+        if passphrase is not None:
+            print(passphrase)
+        sys.exit(0)
+
+    # Apply a slightly more modern style
+    style = ttk.Style()
+    style.theme_use(\'clam\')
+    app = GitManagerGUI(root)
+    root.mainloop()
 
     def push_tag_to_remote(self):
         tag = self.new_tag_var.get().strip()
