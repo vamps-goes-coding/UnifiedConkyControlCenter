@@ -2,7 +2,7 @@
   "application": {
     "display_name": "Unified Conky Control Center",
     "internal_name": "UnifiedConkyControlCenter",
-    "version": "1.0.46",
+    "version": "v1.0.48",
     "organization": "Conky",
     "github_url": "https://github.com/vamps-goes-coding/UnifiedConkyControlCenter"
   },

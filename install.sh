@@ -440,7 +440,7 @@ install_dependencies() {
         deb)
             gui_progress_update 30 "Running apt-get..."
             sudo_run apt-get update -y >> "$LOG_FILE" 2>&1
-            command -v conky &>/dev/null || sudo_run apt-get install -y conky >> "$LOG_FILE" 2>&1
+            command -v conky &>/dev/null || sudo_run apt-get install -y conky nlohmann-json3-dev >> "$LOG_FILE" 2>&1
             # Try Qt6 first, fall back to Qt5
             sudo_run apt-get install -y qt6-base-dev 2>/dev/null || \
                 sudo_run apt-get install -y qtbase5-dev >> "$LOG_FILE" 2>&1 || true
@@ -459,8 +459,7 @@ install_dependencies() {
             ;;
         arch)
             gui_progress_update 30 "Running pacman..."
-            command -v conky &>/dev/null || sudo_run pacman -S --noconfirm conky >> "$LOG_FILE" 2>&1
-            sudo_run pacman -S --noconfirm --needed qt6-base qt6-wayland >> "$LOG_FILE" 2>&1 || true
+            sudo_run pacman -S --noconfirm --needed conky nlohmann-json cmake qt6-base qt6-wayland base-devel >> "$LOG_FILE" 2>&1 || true
             ;;
     esac
 
@@ -538,7 +537,7 @@ pkgdesc="A unified control center for managing Conky configurations across X11 a
 arch=(x86_64)
 url="https://github.com/${GITHUB_USER}/${GITHUB_REPO}"
 license=(GPL)
-depends=(conky qt6-base qt6-wayland)
+depends=(conky qt6-base qt6-wayland nlohmann-json hicolor-icon-theme)
 source=("${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz")
 sha256sums=(SKIP)
 
@@ -547,11 +546,10 @@ package() {
     local exe_path=\$(find "\${srcdir}" -type f -executable -iname "${APP_NAME}" | head -n 1)
     if [ -z "\$exe_path" ]; then
         # Fallback: find any file named similarly if executable bit is missing
-        exe_path=\$(find "\${srcdir}" -type f -iname "${APP_NAME}" | head -n 1)
+        exe_path=\$(find "\${srcdir}" -type f -iname "*${APP_NAME}*" | head -n 1)
     fi
     [ -n "\$exe_path" ] || { echo "Error: Could not find binary matching ${APP_NAME} in \${srcdir}"; ls -R "\${srcdir}"; exit 1; }
 
-    # Detect the source root by finding where 'bin' or 'share' lives
     local bin_dir=\$(dirname "\$exe_path")
     local src_root=\$(cd "\$bin_dir/.." && pwd)
 
