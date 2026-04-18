@@ -3,6 +3,7 @@
 #include "ui_manager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QSplitter>
 #include <QTabWidget>
 #include <QLineEdit>
 #include <QPushButton>
@@ -62,27 +63,46 @@ void PreferencesDialog::setupUI() {
         if (!dir.isEmpty()) themesPathEdit->setText(dir);
     });
 
-    // --- "Start Mains" Panels Tab ---
+// --- "Start Mains" Panels Tab ---
     auto* panelsTab = new QWidget();
     auto* panelsLayout = new QVBoxLayout(panelsTab);
     panelsLayout->addWidget(new QLabel("Panels started by 'Start Mains' button:"));
-    
-    panelsList = new QListWidget();
-    panelsLayout->addWidget(panelsList);
-    
-    auto* pButtons = new QHBoxLayout();
-    auto* addPanel = new QPushButton("Add Panel");
-    auto* remPanel = new QPushButton("Remove Selected");
-    pButtons->addWidget(addPanel);
-    pButtons->addWidget(remPanel);
-    panelsLayout->addLayout(pButtons);
 
-    connect(addPanel, &QPushButton::clicked, [this]() {
-        QString name = QString::fromStdString(UIManager::show_input_dialog("Add Panel", "Enter panel config name (without .conf):"));
-        if (!name.isEmpty()) panelsList->addItem(name);
+    // Available panels list
+    auto* availableGroup = new QGroupBox("Available Panels");
+    auto* availableLayout = new QVBoxLayout(availableGroup);
+    availablePanelsList = new QListWidget();
+    availableLayout->addWidget(availablePanelsList);
+    panelsLayout->addWidget(availableGroup);
+
+    // Selected panels list
+    auto* selectedGroup = new QGroupBox("Start Mains Panels");
+    auto* selectedLayout = new QVBoxLayout(selectedGroup);
+    panelsList = new QListWidget();
+    selectedLayout->addWidget(panelsList);
+
+    // Control buttons
+    auto* controlLayout = new QHBoxLayout();
+    auto* addButton = new QPushButton("Add ->");
+    auto* removeButton = new QPushButton("<- Remove");
+    controlLayout->addWidget(addButton);
+    controlLayout->addWidget(removeButton);
+    selectedLayout->addLayout(controlLayout);
+
+    panelsLayout->addWidget(availableGroup);
+    panelsLayout->addWidget(selectedGroup);
+
+    connect(addButton, &QPushButton::clicked, [this]() {
+        QList<QListWidgetItem*> selected = availablePanelsList->selectedItems();
+        for (QListWidgetItem* item : selected) {
+            panelsList->addItem(item->text());
+        }
     });
-    connect(remPanel, &QPushButton::clicked, [this]() {
-        delete panelsList->currentItem();
+    connect(removeButton, &QPushButton::clicked, [this]() {
+        QList<QListWidgetItem*> selected = panelsList->selectedItems();
+        for (QListWidgetItem* item : selected) {
+            delete item;
+        }
     });
 
     // --- Editors Tab ---
@@ -115,9 +135,6 @@ void PreferencesDialog::setupUI() {
     // --- App Info Tab ---
     auto* infoTab = new QWidget();
     auto* infoLayout = new QVBoxLayout(infoTab);
-    appNameEdit = new QLineEdit();
-    infoLayout->addWidget(new QLabel("Application Display Name:"));
-    infoLayout->addWidget(appNameEdit);
     infoLayout->addStretch();
 
 
@@ -284,12 +301,20 @@ void PreferencesDialog::loadCurrentConfig() {
 
 
     // General
-    appNameEdit->setText(QString::fromStdString(config.get_application_config().display_name));
     
 
-    // Panels
+// Panels - Startup List
+    panelsList->clear();
     for (const auto& panel : config.get_ui_config().default_panels_to_start) {
         panelsList->addItem(QString::fromStdString(panel));
+    }
+
+    // Available panels list
+    availablePanelsList = new QListWidget();
+    availablePanelsList->setObjectName("availablePanelsList");
+    auto available = Utils::discover_panels();
+    for (const auto& panel : available) {
+        availablePanelsList->addItem(QString::fromStdString(panel));
     }
     
     // Editors
@@ -339,7 +364,6 @@ void PreferencesDialog::saveAndAccept() {
     config.set_themes_path(themesPathEdit->text().toStdString());
 
     // Update General
-    config.get_application_config().display_name = appNameEdit->text().toStdString();
 
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();
