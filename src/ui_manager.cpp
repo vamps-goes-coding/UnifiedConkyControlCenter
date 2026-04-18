@@ -1531,10 +1531,7 @@ if (ThemeManager::apply_global_theme(theme.toStdString(), category)) {
         theme_label->setText(QString("Theme: %1").arg(theme));
     }
 
-    // --- THE CRITICAL ADDITION ---
-    Utils::signal_all_conky_instances();
-    // -----------------------------
-
+            // restart_active_panels will handle killing and starting everything correctly
     ConkyManager::restart_active_panels();
 }
     });
@@ -1584,6 +1581,7 @@ void UIManager::load_themes_for_category(QListWidget* theme_list, const std::str
     if (!theme_list) return;
     
     auto themes = ThemeManager::get_themes_for_category(category_key);
+    std::sort(themes.begin(), themes.end());
     theme_list->clear();
     for (const auto& theme : themes) {
         theme_list->addItem(QString::fromStdString(theme));
@@ -2031,6 +2029,7 @@ QWidget* UIManager::create_theme_editor_tab(QWidget* parent) {
         theme_combo->clear();
         if (cat.isEmpty()) return;
         auto themes = ThemeManager::get_themes_for_category(cat.toStdString());
+        std::sort(themes.begin(), themes.end());
         for (auto const& t : themes) theme_combo->addItem(QString::fromStdString(t));
     });
     
@@ -2119,6 +2118,7 @@ QWidget* UIManager::create_theme_manager_tab(QWidget* parent) {
         m_theme->clear();
         if (cat.isEmpty()) return;
         auto themes = ThemeManager::get_themes_for_category(cat.toStdString());
+        std::sort(themes.begin(), themes.end());
         for (auto const& t : themes) m_theme->addItem(QString::fromStdString(t));
     });
     

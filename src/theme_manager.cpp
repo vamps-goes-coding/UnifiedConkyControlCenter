@@ -208,16 +208,22 @@ bool ThemeManager::apply_theme_to_panel(const std::string& theme_name, const std
 
 bool ThemeManager::apply_global_theme(const std::string& theme_name, const std::string& category_key) {
     auto panels = Utils::discover_panels();
+    fs::path source_theme = get_theme_file_path(theme_name, category_key);
+    
+    if (!fs::exists(source_theme)) {
+        return false;
+    }
+
     bool all_success = true;
     for (const auto& panel : panels) {
-        if (!apply_theme_to_panel(theme_name, category_key, panel)) {
+        fs::path destination_theme = Utils::conky_wayland_directory() / (panel + "-theme.lua");
+        if (!copy_theme_to_panel(source_theme, destination_theme)) {
             all_success = false;
         }
     }
     
     // Also update the global fallback current.lua so any panel using
     // the global theme file will pick it up on next restart
-    fs::path source_theme = get_theme_file_path(theme_name, category_key);
     fs::path current_lua  = Utils::themes_directory() / "current.lua";
     if (!copy_theme_to_panel(source_theme, current_lua)) {
         all_success = false;
@@ -231,6 +237,11 @@ bool ThemeManager::apply_global_theme(const std::string& theme_name, const std::
         theme_name_file.close();
     }
     
+    // Signal once after all files are written
+    if (all_success) {
+        Utils::signal_all_conky_instances();
+    }
+
     return all_success;
 }
 

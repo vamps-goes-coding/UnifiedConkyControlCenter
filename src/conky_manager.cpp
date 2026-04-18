@@ -322,9 +322,13 @@ void ConkyManager::restart_active_panels() {
     std::vector<std::string> panels_to_restart;
 
     for (const auto& panel : all_panels) {
-        std::string abs_path = fs::absolute(Utils::get_conky_config_path(panel)).string();
+        fs::path config_path = Utils::get_conky_config_path(panel);
+        std::string config_filename = config_path.filename().string();
+        
         for (const auto& running : running_configs) {
-            if (fs::absolute(fs::path(running)).string() == abs_path) {
+            fs::path running_path(running);
+            if (fs::absolute(running_path) == fs::absolute(config_path) || 
+                running_path.filename().string() == config_filename) {
                 panels_to_restart.push_back(panel);
                 break;
             }
