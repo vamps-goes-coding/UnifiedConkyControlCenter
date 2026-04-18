@@ -33,6 +33,7 @@ private:
 
     // Panel settings
     QListWidget* panelsList;
+    QListWidget* availablePanelsList;
 
     // Editor settings
     QTableWidget* editorsTable;
@@ -58,7 +59,6 @@ private:
     QLineEdit* currentThemeFileEdit;
 
     // General settings
-    QLineEdit* appNameEdit;
 };
 
 #endif // PREFERENCES_DIALOG_H

@@ -1,6 +1,8 @@
 #include "preferences_dialog.h"
 #include "config_manager.h"
 #include "ui_manager.h"
+#include "utils.h"
+#include <QListWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
@@ -310,8 +312,7 @@ void PreferencesDialog::loadCurrentConfig() {
     }
 
     // Available panels list
-    availablePanelsList = new QListWidget();
-    availablePanelsList->setObjectName("availablePanelsList");
+    availablePanelsList->clear();
     auto available = Utils::discover_panels();
     for (const auto& panel : available) {
         availablePanelsList->addItem(QString::fromStdString(panel));
