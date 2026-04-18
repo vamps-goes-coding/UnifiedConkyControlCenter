@@ -1,22 +1,15 @@
 #!/bin/bash
-# =============================================================================
 # Unified Conky Control Center - Graphical Installer
 # Supports: Fresh Install, Local Build, Update, Uninstall
 # GUI: Auto-detects KDE/GNOME/XFCE/Wayland/X11 and uses native toolkit
-# =============================================================================
 
 set -e
 
-# =============================================================================
 # CONFIG — change version here only, nowhere else
-# =============================================================================
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-<<<<<<< HEAD
 VERSION="v1.0.50"
-=======
 VERSION="v1.0.50"
->>>>>>> a27e201a4616bd4a7957daab3725b0480cc0d95b
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
@@ -26,9 +19,7 @@ INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
 CONFIG_DIR="$HOME/.config/$APP_NAME"
 SKIP_SUDO_CHECK="${SKIP_SUDO_CHECK:-false}"
 
-# =============================================================================
 # COLORS (CLI only)
-# =============================================================================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -37,9 +28,7 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# =============================================================================
 # LOGGING
-# =============================================================================
 LOG_FILE="/tmp/${APP_NAME}-install-$(date +%Y%m%d-%H%M%S).log"
 log() { echo "[$(date +%H:%M:%S)] $*" >> "$LOG_FILE"; }
 info()  { echo -e "${GREEN}[INFO]${NC} $1" >&2;  log "INFO:  $1"; }
@@ -47,9 +36,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1" >&2; log "WARN:  $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2;   log "ERROR: $1"; }
 fatal() { error "$1"; gui_error "$1"; exit 1; }
 
-# =============================================================================
 # STEP 1 — DISPLAY SERVER DETECTION
-# =============================================================================
 detect_display_server() {
     if [ -n "$WAYLAND_DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "wayland" ]; then
         DISPLAY_SERVER="wayland"
@@ -67,9 +54,7 @@ detect_display_server() {
     log "Display server: $DISPLAY_SERVER"
 }
 
-# =============================================================================
 # STEP 2 — DESKTOP ENVIRONMENT DETECTION
-# =============================================================================
 detect_desktop() {
     local de="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-unknown}}"
     de=$(echo "$de" | tr '[:upper:]' '[:lower:]')
@@ -88,9 +73,7 @@ detect_desktop() {
     log "Desktop environment: $DETECTED_DE (raw: $de)"
 }
 
-# =============================================================================
 # STEP 3 — GUI TOOLKIT SELECTION
-# =============================================================================
 detect_gui_toolkit() {
     detect_display_server
     detect_desktop
@@ -145,9 +128,7 @@ detect_gui_toolkit() {
     info "Using GUI toolkit: $GUI_TOOLKIT (DE: $DETECTED_DE, Display: $DISPLAY_SERVER)"
 }
 
-# =============================================================================
 # GUI HELPER FUNCTIONS — unified interface over kdialog/zenity/yad/cli
-# =============================================================================
 
 # Show info dialog
 gui_info() {
@@ -340,9 +321,7 @@ gui_menu() {
     esac
 }
 
-# =============================================================================
 # DISTRO DETECTION
-# =============================================================================
 detect_os() {
     if [ ! -f /etc/os-release ]; then
         fatal "Cannot detect operating system — /etc/os-release not found"
@@ -377,9 +356,7 @@ detect_os() {
     info "Detected: $OS $OS_VERSION → using $INSTALLER_TYPE installer"
 }
 
-# =============================================================================
 # ON-DEMAND SUDO EXECUTION
-# =============================================================================
 # Execute command with sudo, prompting ONLY when actually needed
 # No pre-authentication, no password caching, no temporary files
 sudo_run() {
@@ -400,9 +377,7 @@ sudo_run() {
     fi
 }
 
-# =============================================================================
 # DEPENDENCY CHECK
-# =============================================================================
 check_dependencies() {
     local missing=()
 
@@ -465,9 +440,7 @@ install_dependencies() {
     gui_progress_end
 }
 
-# =============================================================================
 # PACKAGE DOWNLOAD
-# =============================================================================
 get_latest_version() {
     if command -v curl &>/dev/null; then
         curl -s "$GITHUB_API" 2>/dev/null | grep '"tag_name"' | \
@@ -499,9 +472,7 @@ get_package_name() {
     esac
 }
 
-# =============================================================================
 # INSTALL BACKENDS
-# =============================================================================
 install_deb() {
     local pkg="$1"
     log "Installing deb: $pkg"
@@ -652,9 +623,7 @@ install_local_build() {
     cd ..
 }
 
-# =============================================================================
 # DESKTOP SHORTCUT
-# =============================================================================
 create_desktop_shortcut() {
     local desktop_file="$HOME/.local/share/applications/unified-conky-control-center.desktop"
     mkdir -p "$(dirname "$desktop_file")"
@@ -672,9 +641,7 @@ DEOF
     log "Desktop shortcut created: $desktop_file"
 }
 
-# =============================================================================
 # UNINSTALL
-# =============================================================================
 do_uninstall() {
     gui_confirm "Uninstall $APP_DISPLAY_NAME" \
         "Are you sure you want to uninstall $APP_DISPLAY_NAME $VERSION?" || {
@@ -737,9 +704,7 @@ do_uninstall() {
     log "Uninstall complete"
 }
 
-# =============================================================================
 # UPDATE
-# =============================================================================
 do_update() {
     gui_progress_start "Checking for Updates" "Fetching latest version info..."
     gui_progress_update 20 "Querying GitHub API..."
@@ -774,9 +739,7 @@ do_update() {
     do_fresh_install
 }
 
-# =============================================================================
 # FRESH INSTALL
-# =============================================================================
 do_fresh_install() {
     # --- Welcome ---
     gui_info "Welcome" \
@@ -867,9 +830,7 @@ do_fresh_install() {
     log "Fresh install complete: $VERSION → $INSTALL_PREFIX"
 }
 
-# =============================================================================
 # LOCAL BUILD INSTALL
-# =============================================================================
 do_local_install() {
     gui_info "Local Build Install" \
         "Installing $APP_DISPLAY_NAME from local build directory.\n\nMake sure you have run:\ncmake -B build && cmake --build build"
@@ -903,9 +864,7 @@ do_local_install() {
     log "Local install complete → $INSTALL_PREFIX"
 }
 
-# =============================================================================
 # AUTHENTICATION HELPER
-# =============================================================================
 setup_askpass() {
     [ "$GUI_TOOLKIT" = "cli" ] && return
     
@@ -923,9 +882,7 @@ setup_askpass() {
     trap 'rm -f "$helper" 2>/dev/null; trap - EXIT; exit' EXIT INT TERM
 }
 
-# =============================================================================
 # INTERACTIVE MODE SELECTION (no args given)
-# =============================================================================
 interactive_mode_select() {
     local choice
     choice=$(gui_menu "Installer" "What would you like to do?" \
@@ -944,9 +901,7 @@ interactive_mode_select() {
     esac
 }
 
-# =============================================================================
 # MAIN — argument parsing
-# =============================================================================
 main() {
     log "=== $APP_DISPLAY_NAME Installer started ==="
     log "Args: $*"
