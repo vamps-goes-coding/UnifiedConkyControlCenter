@@ -1455,10 +1455,6 @@ if (ThemeManager::apply_theme_to_panel(theme.toStdString(), category, panel.toSt
         theme_label->setText(QString("Theme: %1").arg(theme));
     }
 
-    // --- THE CRITICAL ADDITION ---
-    Utils::signal_all_conky_instances();
-    // -----------------------------
-
     // Stop the panel first
     ConkyManager::stop_panel(panel.toStdString());
                 

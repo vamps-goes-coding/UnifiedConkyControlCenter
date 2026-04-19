@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21) # Higher version for better Qt6 & FetchContent support 
-project(UnifiedConkyControlCenter VERSION 1.0.46 LANGUAGES CXX)
+project(UnifiedConkyControlCenter VERSION 1.0.51 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and modern Qt 6.8 features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,6 +57,10 @@ if(NOT nlohmann_json_FOUND)
         GIT_TAG v3.11.3
     )
     FetchContent_MakeAvailable(json)
+    # Create the namespaced alias for the fetched target to match target_link_libraries
+    if(NOT TARGET nlohmann_json::nlohmann_json)
+        add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
+    endif()
 endif()
 
 # 3. Source and Header Organization [cite: 3, 4]
