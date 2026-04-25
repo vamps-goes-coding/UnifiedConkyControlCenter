@@ -1,0 +1,14 @@
+# Ignore heavy assets that the AI doesn't need to "read"
+*.png
+*.jpg
+*.jpeg
+*.csv
+*.svg
+
+# Ignore system/build junk
+__pycache__/
+.git/
+venv/
+.venv/
+build/
+dist/
