@@ -1,31 +1,51 @@
 # 🚀 Unified Conky Control Center (UCCC)
 
-![Arch Linux](https://img.shields.io/badge/Arch_Linux-Verified-brightgreen?logo=arch-linux)
-![CachyOS](https://img.shields.io/badge/CachyOS-Verified-brightgreen?logo=linux)
-![Wayland](https://img.shields.io/badge/Wayland-Stable-brightgreen)
-![Fedora](https://img.shields.io/badge/Fedora-Testing-yellow?logo=fedora)
-![Debian](https://img.shields.io/badge/Debian-Needs_Tester-red?logo=debian)
+✅ Works on **any Linux distro** • ✅ Works on **X11 + Wayland** • ✅ Works on **every desktop environment**
 
-**Stop wrestling with `.conf` files.** UCCC is a high-performance visual hub for managing your Conky panels across X11 and Wayland. Built for users who love deep desktop customization but hate scattered configuration.
+**Stop wrestling with `.conf` files.** UCCC is a simple visual hub for managing all your Conky panels. Built for everyone who loves customizing their desktop, without the headache.
 
-[**Download Releases**](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases) | [**Report a Bug**](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/issues)
+[**Download Releases**](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases) | [**Report Issues**](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/issues)
 
 ---
 
-## 🛠 Features at a Glance
+## ✨ What it does
 
-* **Zero-Config Discovery:** Automatically finds your panels in `~/.config/conky`.
-* **One-Click Control:** Toggle, restart, or kill panels via a clean GUI or System Tray.
-* **Theme Engine:** Build and swap Lua-based themes without touching code.
-* **Visual Positioning:** Tweak gaps and alignment using sliders.
-* **Smart Detection:** Seamlessly switches logic between X11 and Wayland environments.
-* **CLI Mode:** Perfect for headless setups or startup scripting.
+* Automatically finds all your existing Conky panels
+* One click to start / stop / restart any panel
+* Theme switcher without editing code
+* Works silently in your system tray
+* No complicated setup required
+* Works exactly the same everywhere
 
 ---
 
-## 📥 Quick Install
+## 📥 Install
 
-### **Arch Linux & CachyOS (Recommended)**
+Download the latest release for your system, or run the universal installer:
 ```bash
-# Get the PKGBUILD from releases, then:
-makepkg -si
+curl -s https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/main/install.sh | bash
+```
+
+That's it. No extra steps. It will work on your system no matter what distro you run.
+
+---
+
+## 💡 How to use
+
+1. Quick and easy setup from the Smart Installer (install.sh)
+2. Launch it from your applications menu
+3. All your Conkys will show up automatically
+4. Click the buttons to control them
+5. Right click the tray icon for quick actions
+
+You don't need to configure anything. It just works.
+
+---
+
+### Supported Environments
+Gnome, KDE, Xfce, Cinnamon, MATE, LXQt, i3, Sway, Hyprland, Openbox, Awesome, BSPWM, and everything else that runs Linux.
+
+### Getting Help/Support
+Once I figure out where i want to host the support channels(Matrix, IRC, Telegram and the like) I will add that information here so you can reach out.
+
+Thank you for checking out this tool. I hope it helps you as it has me.
