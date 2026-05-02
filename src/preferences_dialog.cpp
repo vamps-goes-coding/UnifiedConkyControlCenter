@@ -4,6 +4,7 @@
 #include "utils.h"
 #include <QListWidget>
 #include <QVBoxLayout>
+#include "hardware_detector.h"
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QTabWidget>
@@ -19,8 +20,8 @@
 #include <QSpinBox>
 #include <QComboBox>
 #include <QPlainTextEdit>
-#include <QLineEdit> // Include QLineEdit for appNameEdit
 #include <QGroupBox>
+#include <QFormLayout>
 #include <vector>
 #include <string>
 
@@ -266,6 +267,45 @@ void PreferencesDialog::setupUI() {
     themeLayout->addWidget(themeFilesGroup);
     themeLayout->addStretch();
 
+    // --- Hardware Tab ---
+    auto* hwTab = new QWidget();
+    auto* hwLayout = new QVBoxLayout(hwTab);
+    auto* hwForm = new QFormLayout();
+
+    auto gpus = HardwareDetector::detect_gpus();
+    auto* gpuCombo = new QComboBox();
+    for (const auto& g : gpus) gpuCombo->addItem(QString::fromStdString(g.name), QString::fromStdString(g.id));
+    hwForm->addRow("Default GPU:", gpuCombo);
+
+    auto nets = HardwareDetector::detect_network_interfaces();
+    auto* netCombo = new QComboBox();
+    for (const auto& n : nets) netCombo->addItem(QString::fromStdString(n.name), QString::fromStdString(n.id));
+    hwForm->addRow("Primary Network:", netCombo);
+
+    auto audio = HardwareDetector::detect_audio_cards();
+    auto* audioCombo = new QComboBox();
+    for (const auto& a : audio) audioCombo->addItem(QString::fromStdString(a.name), QString::fromStdString(a.id));
+    hwForm->addRow("Default Sound Card:", audioCombo);
+
+    hwLayout->addLayout(hwForm);
+    
+    auto* scanBtn = new QPushButton("Re-scan Hardware");
+    connect(scanBtn, &QPushButton::clicked, [=]() {
+        gpuCombo->clear();
+        for (const auto& g : HardwareDetector::detect_gpus()) 
+            gpuCombo->addItem(QString::fromStdString(g.name), QString::fromStdString(g.id));
+            
+        netCombo->clear();
+        for (const auto& n : HardwareDetector::detect_network_interfaces()) 
+            netCombo->addItem(QString::fromStdString(n.name), QString::fromStdString(n.id));
+            
+        audioCombo->clear();
+        for (const auto& a : HardwareDetector::detect_audio_cards()) 
+            audioCombo->addItem(QString::fromStdString(a.name), QString::fromStdString(a.id));
+    });
+    hwLayout->addWidget(scanBtn);
+    hwLayout->addStretch();
+
     // Add all tabs
     tabs->addTab(pathsTab, "Paths");
     tabs->addTab(infoTab, "General");
@@ -276,6 +316,7 @@ void PreferencesDialog::setupUI() {
     tabs->addTab(refreshTab, "Refresh & Window");
     tabs->addTab(displayTab, "Display Server");
     tabs->addTab(themeTab, "Themes");
+    tabs->addTab(hwTab, "Hardware");
 
     mainLayout->addWidget(tabs);
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21) # Higher version for better Qt6 & FetchContent support 
-project(UnifiedConkyControlCenter VERSION 1.1.0 LANGUAGES CXX)
+project(UnifiedConkyControlCenter VERSION 1.1.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and modern Qt 6.8 features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -85,6 +85,8 @@ set(SOURCES
     src/preferences_dialog.cpp
     src/system_detector.cpp
     src/setup_wizard.cpp
+    src/hardware_detector.cpp
+    src/hardware_detector.h
 
     include/first_run_setup.h
     include/conky_syntax_highlighter.h

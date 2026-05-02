@@ -84,6 +84,13 @@ bool ConfigManager::load_config(const fs::path& config_path) {
             themes_config_.current_theme_txt = themes.value("current_theme_txt", themes_config_.current_theme_txt);
         }
         
+        // Parse hardware config
+        if (config.contains("hardware") && config["hardware"].is_object()) {
+            auto& hw = config["hardware"];
+            // Example: "preferred_net": "wlan0"
+            // We assume hardware_prefs_ is a std::map<std::string, std::string>
+        }
+
         // Parse app themes
         if (config.contains("app_themes") && config["app_themes"].is_array()) {
             app_themes_ = config["app_themes"].get<std::vector<std::string>>();

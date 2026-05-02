@@ -1,5 +1,6 @@
 #include "in_app_editor.h"
 #include "conky_syntax_highlighter.h"
+#include "hardware_detector.h"
 
 #include <QLineEdit>
 #include <QCheckBox>
@@ -12,6 +13,8 @@
 #include <QTextBlock>
 #include <QInputDialog>
 #include <QPushButton>
+#include <QMenu>
+#include <QToolButton>
 
 InAppEditor::InAppEditor(QWidget* parent)
     : QDialog(parent)
@@ -127,6 +130,44 @@ void InAppEditor::setupToolbar() {
     
     toolbar->addSeparator();
     
+    // Hardware Injection Menu
+    QToolButton* hwButton = new QToolButton();
+    hwButton->setText("Insert Hardware");
+    hwButton->setPopupMode(QToolButton::InstantPopup);
+    hwButton->setStyleSheet("padding: 4px; font-weight: bold; color: #005fb8;");
+    
+    QMenu* hwMenu = new QMenu(hwButton);
+    
+    QMenu* netMenu = hwMenu->addMenu("Network");
+    for (const auto& dev : HardwareDetector::detect_network_interfaces()) {
+        netMenu->addAction(QString::fromStdString(dev.name), [this, dev]() {
+            textEdit_->insertPlainText(QString::fromStdString(dev.conky_variable));
+        });
+    }
+
+    QMenu* gpuMenu = hwMenu->addMenu("GPU");
+    for (const auto& dev : HardwareDetector::detect_gpus()) {
+        gpuMenu->addAction(QString::fromStdString(dev.name), [this, dev]() {
+            textEdit_->insertPlainText(QString::fromStdString(dev.conky_variable));
+        });
+    }
+
+    QMenu* sensorMenu = hwMenu->addMenu("Sensors");
+    for (const auto& dev : HardwareDetector::detect_hwmon_sensors()) {
+        sensorMenu->addAction(QString::fromStdString(dev.name), [this, dev]() {
+            textEdit_->insertPlainText(QString::fromStdString(dev.conky_variable));
+        });
+    }
+
+    QMenu* cpuMenu = hwMenu->addMenu("CPU");
+    cpuMenu->addAction("Usage (%)", [this]() { textEdit_->insertPlainText("${cpu cpu0}%"); });
+    cpuMenu->addAction("Frequency", [this]() { textEdit_->insertPlainText("${freq_g}GHz"); });
+
+    hwButton->setMenu(hwMenu);
+    toolbar->addWidget(hwButton);
+
+    toolbar->addSeparator();
+
     // Search operations
     findAction_ = toolbar->addAction("Find");
     findAction_->setShortcut(QKeySequence::Find);
