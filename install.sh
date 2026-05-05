@@ -8,10 +8,10 @@ set -e
 # CONFIG — change version here only, nowhere else
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
+VERSION="v1.1.2"
 VERSION="v1.1.1"
-VERSION="v1.1.0"
-VERSION="v1.1.0"
-VERSION="v1.1.0"
+VERSION="v1.1.1"
+VERSION="v1.1.1"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
