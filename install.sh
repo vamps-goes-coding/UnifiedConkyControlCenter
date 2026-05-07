@@ -8,7 +8,7 @@ set -e
 # CONFIG — change version here only, nowhere else
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.1.2"
+VERSION="v1.1.3"
 VERSION="v1.1.1"
 VERSION="v1.1.1"
 VERSION="v1.1.1"

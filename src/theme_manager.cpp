@@ -1,6 +1,7 @@
 #include "theme_manager.h"
 #include "utils.h"
 #include "config_parser.h"
+#include <dirent.h>
 #include <fstream>
 #include <algorithm>
 #include <vector>
@@ -8,7 +9,62 @@
 #include <stdexcept>
 #include <string_view>
 
+#include <signal.h>
+#include <unistd.h>
 namespace fs = std::filesystem;
+
+// Restart Conky processes gracefully to ensure multi-monitor layouts refresh
+// This is a lightweight helper intended to address multi-monitor refresh issues
+// after a theme change.
+static void restart_conky_instances() {
+    // Enumerate /proc, find conky processes by reading cmdline, then restart
+    DIR* dir = opendir("/proc");
+    if (!dir) return;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_type != DT_DIR) continue;
+        const char* dname = entry->d_name;
+        // skip non-numeric dirs
+        bool is_pid = true;
+        for (const char* p = dname; *p; ++p) {
+            if (!(*p >= '0' && *p <= '9')) { is_pid = false; break; }
+        }
+        if (!is_pid) continue;
+        // Build cmdline path
+        char cmdpath[256];
+        snprintf(cmdpath, sizeof(cmdpath), "/proc/%s/cmdline", dname);
+        FILE* f = fopen(cmdpath, "r");
+        if (!f) continue;
+        // Read null-separated arguments
+        char buf[4096];
+        size_t n = 0; size_t r;
+        while ((r = fread(buf + n, 1, sizeof(buf) - n - 1, f)) > 0) {
+            n += r;
+            if (n >= sizeof(buf) - 1) break;
+        }
+        fclose(f);
+        // Replace nulls with spaces to form a shell command line
+        for (size_t i = 0; i < n; ++i) {
+            if (buf[i] == '\0') buf[i] = ' ';
+        }
+        buf[n] = '\0';
+        std::string cmdline(buf);
+        if (cmdline.find("conky") != std::string::npos) {
+            // Terminate the running instance
+            kill(atoi(dname), SIGTERM);
+            // Small delay to allow termination
+            usleep(100000);
+            // Restart using the same command line (best-effort)
+            if (!cmdline.empty()) {
+                // Use system() to spawn the process from the same command line
+                // Note: system() invokes /bin/sh -c, which is acceptable for our intent
+                int rc = system(cmdline.c_str());
+                (void)rc; // best-effort restart
+            }
+        }
+    }
+    closedir(dir);
+}
 
 // Static member implementations
 std::map<std::string, std::vector<std::string>> ThemeManager::_cached_categories;
@@ -202,6 +258,8 @@ bool ThemeManager::apply_theme_to_panel(const std::string& theme_name, const std
     bool write_success = copy_theme_to_panel(source_theme, destination_theme);
     if (write_success) {
         Utils::signal_all_conky_instances();
+        // Ensure all Conky panels across monitors refresh their layout
+        restart_conky_instances();
     }
     return write_success;
 }
@@ -240,6 +298,8 @@ bool ThemeManager::apply_global_theme(const std::string& theme_name, const std::
     // Signal once after all files are written
     if (all_success) {
         Utils::signal_all_conky_instances();
+        // Restart all Conky processes to guarantee cross-monitor theme application
+        restart_conky_instances();
     }
 
     return all_success;
