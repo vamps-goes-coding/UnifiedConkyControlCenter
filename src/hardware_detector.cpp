@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <memory>
+#include <vector>
+#include <string>
+#include <cctype>
 
 namespace fs = std::filesystem;
 
@@ -32,6 +35,31 @@ std::string HardwareDetector::exec(const char* cmd) {
     return result;
 }
 
+// Helper to trim whitespace
+static std::string trim(const std::string& str) {
+    size_t start = str.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) return "";
+    size_t end = str.find_last_not_of(" \t\n\r");
+    return str.substr(start, end - start + 1);
+}
+
+// Helper to execute lspci and parse lines matching a pattern
+static std::vector<std::string> lspci_grep(const std::string& pattern) {
+    std::vector<std::string> results;
+    std::string cmd = "lspci -mm";
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+    if (!pipe) return results;
+    char buffer[512];
+    while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
+        std::string line(buffer);
+        // lspci -mm output: quoted fields separated by spaces, we can parse simply
+        if (line.find(pattern) != std::string::npos) {
+            results.push_back(trim(line));
+        }
+    }
+    return results;
+}
+
 std::vector<DeviceInfo> HardwareDetector::detect_gpus() {
     std::vector<DeviceInfo> gpus;
     // Check NVIDIA via smi
@@ -41,15 +69,34 @@ std::vector<DeviceInfo> HardwareDetector::detect_gpus() {
         std::string line;
         int idx = 0;
         while (std::getline(ss, line) && !line.empty()) {
-            gpus.push_back({line, std::to_string(idx), "${nvidia temp}"});
+            gpus.push_back({trim(line), std::to_string(idx), "${nvidia temp}"});
             idx++;
         }
     }
-    // Check DRM for AMD/Intel
-    for (const auto& entry : fs::directory_iterator("/sys/class/drm")) {
-        std::string name = entry.path().filename().string();
-        if (name.find("card") == 0 && name.find("-") == std::string::npos) {
-            gpus.push_back({"Generic GPU (" + name + ")", name, "${hwmon 0 temp 1}"});
+    // Check DRM for AMD/Intel (fallback if no smi)
+    if (gpus.empty()) {
+        for (const auto& entry : fs::directory_iterator("/sys/class/drm")) {
+            std::string name = entry.path().filename().string();
+            if (name.find("card") == 0 && name.find("-") == std::string::npos) {
+                gpus.push_back({"Generic GPU (" + name + ")", name, "${hwmon 0 temp 1}"});
+            }
+        }
+    }
+    // If still empty, try lspci for VGA compatible controllers
+    if (gpus.empty()) {
+        auto lines = lspci_grep("VGA compatible controller");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string line = lines[i];
+            // Extract the device description after the colon
+            size_t pos = line.find(':');
+            if (pos != std::string::npos) {
+                std::string desc = trim(line.substr(pos + 1));
+                // Remove surrounding quotes if any
+                if (desc.size() >= 2 && desc.front() == '"' && desc.back() == '"') {
+                    desc = desc.substr(1, desc.size() - 2);
+                }
+                gpus.push_back({desc, "lspci_" + std::to_string(i), "${hwmon 0 temp 1}"}); // generic hwmon placeholder
+            }
         }
     }
     return gpus;
@@ -67,6 +114,7 @@ std::vector<DeviceInfo> HardwareDetector::detect_network_interfaces() {
 
 std::vector<DeviceInfo> HardwareDetector::detect_audio_cards() {
     std::vector<DeviceInfo> cards;
+    // First try /proc/asound/cards (existing)
     std::ifstream file("/proc/asound/cards");
     std::string line;
     while (std::getline(file, line)) {
@@ -79,7 +127,22 @@ std::vector<DeviceInfo> HardwareDetector::detect_audio_cards() {
         size_t end = line.find("]");
         if (start != std::string::npos && end != std::string::npos) {
             name = line.substr(start, end - start);
-            cards.push_back({name, idx, ""});
+            cards.push_back({trim(name), idx, ""});
+        }
+    }
+    // If none found, try lspci for audio devices
+    if (cards.empty()) {
+        auto lines = lspci_grep("Audio device");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string line = lines[i];
+            size_t pos = line.find(':');
+            if (pos != std::string::npos) {
+                std::string desc = trim(line.substr(pos + 1));
+                if (desc.size() >= 2 && desc.front() == '"' && desc.back() == '"') {
+                    desc = desc.substr(1, desc.size() - 2);
+                }
+                cards.push_back({trim(desc), "lspci_audio_" + std::to_string(i), ""});
+            }
         }
     }
     return cards;
