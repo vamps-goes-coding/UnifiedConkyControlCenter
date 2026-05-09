@@ -11,31 +11,72 @@
 
 #include <signal.h>
 #include <unistd.h>
+#include <thread>
+#include <atomic>
+#include <sstream>
+#include <fcntl.h>
 namespace fs = std::filesystem;
 
-// Restart Conky processes gracefully to ensure multi-monitor layouts refresh
-// This is a lightweight helper intended to address multi-monitor refresh issues
-// after a theme change.
+static std::atomic<bool> restart_in_progress{false};
+
+// Spawn a process from a space-separated cmdline using fork()+execvp().
+// The child setsid()s and redirects all fds to /dev/null so it doesn't
+// block the parent or inherit stdin/stdout/stderr.
+static void spawn_conky_fork_exec(const std::string& cmdline) {
+    std::vector<std::string> tokens;
+    std::istringstream stream(cmdline);
+    std::string token;
+    while (stream >> token) {
+        tokens.push_back(std::move(token));
+    }
+    if (tokens.empty()) return;
+
+    std::vector<char*> argv;
+    for (auto& t : tokens) {
+        argv.push_back(t.data());
+    }
+    argv.push_back(nullptr);
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        setsid();
+        int fd = open("/dev/null", O_RDWR);
+        if (fd >= 0) {
+            dup2(fd, STDIN_FILENO);
+            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDERR_FILENO);
+            if (fd > STDERR_FILENO) close(fd);
+        }
+        execvp(argv[0], argv.data());
+        _exit(127);
+    }
+}
+
 static void restart_conky_instances() {
-    // Enumerate /proc, find conky processes by reading cmdline, then restart
+    if (restart_in_progress.exchange(true)) return;
+
     DIR* dir = opendir("/proc");
-    if (!dir) return;
+    if (!dir) {
+        restart_in_progress = false;
+        return;
+    }
+
+    std::vector<std::string> conky_cmdlines;
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_type != DT_DIR) continue;
         const char* dname = entry->d_name;
-        // skip non-numeric dirs
         bool is_pid = true;
         for (const char* p = dname; *p; ++p) {
             if (!(*p >= '0' && *p <= '9')) { is_pid = false; break; }
         }
         if (!is_pid) continue;
-        // Build cmdline path
+
         char cmdpath[256];
         snprintf(cmdpath, sizeof(cmdpath), "/proc/%s/cmdline", dname);
         FILE* f = fopen(cmdpath, "r");
         if (!f) continue;
-        // Read null-separated arguments
+
         char buf[4096];
         size_t n = 0; size_t r;
         while ((r = fread(buf + n, 1, sizeof(buf) - n - 1, f)) > 0) {
@@ -43,27 +84,31 @@ static void restart_conky_instances() {
             if (n >= sizeof(buf) - 1) break;
         }
         fclose(f);
-        // Replace nulls with spaces to form a shell command line
+
         for (size_t i = 0; i < n; ++i) {
             if (buf[i] == '\0') buf[i] = ' ';
         }
         buf[n] = '\0';
         std::string cmdline(buf);
         if (cmdline.find("conky") != std::string::npos) {
-            // Terminate the running instance
             kill(atoi(dname), SIGTERM);
-            // Small delay to allow termination
-            usleep(100000);
-            // Restart using the same command line (best-effort)
-            if (!cmdline.empty()) {
-                // Use system() to spawn the process from the same command line
-                // Note: system() invokes /bin/sh -c, which is acceptable for our intent
-                int rc = system(cmdline.c_str());
-                (void)rc; // best-effort restart
-            }
+            conky_cmdlines.push_back(std::move(cmdline));
         }
     }
     closedir(dir);
+
+    if (conky_cmdlines.empty()) {
+        restart_in_progress = false;
+        return;
+    }
+
+    std::thread([cmdlines = std::move(conky_cmdlines)]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        for (const auto& cl : cmdlines) {
+            spawn_conky_fork_exec(cl);
+        }
+        restart_in_progress = false;
+    }).detach();
 }
 
 // Static member implementations
