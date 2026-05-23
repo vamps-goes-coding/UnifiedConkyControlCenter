@@ -889,8 +889,9 @@ void UIManager::refresh_panel_status(QTableWidget* /*deprecated_table*/, QGridLa
             restart_btn->setObjectName("restartBtn");
             restart_btn->setStyleSheet("background-color: #9a6700; color: white; border-radius: 4px; padding: 3px 8px; font-size: 11px;");
             restart_btn->setToolTip("Restart Panel");
-            QObject::connect(restart_btn, &QPushButton::clicked, [panel]() {
-                ConkyManager::reload_panel(panel);
+            QObject::connect(restart_btn, &QPushButton::clicked, [panel, status_grid]() {
+                ConkyManager::restart_panels_with_verification({panel});
+                QTimer::singleShot(2000, [status_grid]() { refresh_panel_status(nullptr, status_grid); });
             });
             
             start_btn->setVisible(!is_running);
@@ -1455,54 +1456,7 @@ if (ThemeManager::apply_theme_to_panel(theme.toStdString(), category, panel.toSt
         theme_label->setText(QString("Theme: %1").arg(theme));
     }
 
-    // Stop the panel first
-    ConkyManager::stop_panel(panel.toStdString());
-                
-                // Wait for panel to fully stop before restarting (increased timeout for reliability)
-                QTimer::singleShot(1500, [panel]() {
-                    try {
-                        // Verify panel is actually stopped before restarting
-                        auto running = ConkyManager::get_running_configs(true);
-                        std::string abs_path;
-                        try {
-                            abs_path = fs::absolute(Utils::get_conky_config_path(panel.toStdString())).string();
-                        } catch (...) {
-                            abs_path = Utils::get_conky_config_path(panel.toStdString()).string();
-                        }
-                        
-                        bool still_running = false;
-                        for (const auto& r : running) {
-                            try {
-                                if (fs::absolute(fs::path(r)).string() == abs_path) {
-                                    still_running = true;
-                                    break;
-                                }
-                            } catch (...) {}
-                        }
-                    
-                        if (!still_running) {
-                            // Panel is fully stopped, safe to restart
-                            ConkyManager::start_panel(panel.toStdString());
-                        } else {
-                            // Panel still running, try force kill and retry
-                            std::string kill_cmd = "pkill -9 -f \"conky -c.*" + Utils::get_conky_config_path(panel.toStdString()).filename().string() + "\"";
-                            if (system(kill_cmd.c_str()) != 0) { /* handle error if necessary */ }
-                        
-                            // Wait a bit more and try starting
-                            QTimer::singleShot(500, [panel]() {
-                                try {
-                                    ConkyManager::start_panel(panel.toStdString());
-                                } catch (const std::exception& e) {
-                                    QMessageBox::warning(nullptr, "Error Restarting Panel",
-                                        QString("Failed to restart panel after theme change: %1").arg(e.what()));
-                                }
-                            });
-                        }
-                    } catch (const std::exception& e) {
-                        QMessageBox::warning(nullptr, "Error Restarting Panel",
-                            QString("Failed to restart panel after theme change: %1").arg(e.what()));
-                    }
-                });
+    ConkyManager::restart_panels_with_verification({panel.toStdString()});
             }
         } catch (const std::exception& e) {
             QMessageBox::warning(nullptr, "Error Applying Theme",
@@ -1749,51 +1703,8 @@ void UIManager::apply_gap_changes(const std::string& panel_name, int gap_x, int 
         return;
     }
 
-    // 2. Stop the panel
-    ConkyManager::stop_panel(panel_name);
-
-    // 3. Poll until the panel process is confirmed dead (max 3 seconds),
-    //    then restart it with skip_check=true so we don't get fooled by
-    //    a not-yet-dead ghost process reporting as still running.
-    //    Each poll fires on the main thread via QTimer so QProcess stays safe.
-    auto poll_and_start = std::make_shared<std::function<void(int)>>();
-    *poll_and_start = [panel_name, poll_and_start](int attempts_left) {
-        auto running = ConkyManager::get_running_configs(true);
-        std::string abs_path;
-        try {
-            abs_path = fs::absolute(Utils::get_conky_config_path(panel_name)).string();
-        } catch (...) {
-            abs_path = Utils::get_conky_config_path(panel_name).string();
-        }
-
-        bool still_running = false;
-        for (const auto& r : running) {
-            try {
-                if (fs::absolute(fs::path(r)).string() == abs_path) {
-                    still_running = true;
-                    break;
-                }
-            } catch (...) {}
-        }
-
-        if (!still_running) {
-            // Panel is fully dead — safe to start with new gap values
-            ConkyManager::start_panel(panel_name, true);
-        } else if (attempts_left > 0) {
-            // Not dead yet — check again in 200ms
-            QTimer::singleShot(200, [panel_name, poll_and_start, attempts_left]() {
-                (*poll_and_start)(attempts_left - 1);
-            });
-        } else {
-            // Timed out — force start anyway
-            ConkyManager::start_panel(panel_name, true);
-        }
-    };
-
-    // Start polling after an initial 200ms pause
-    QTimer::singleShot(200, [poll_and_start]() {
-        (*poll_and_start)(14); // up to 14 x 200ms = ~3 seconds max wait
-    });
+    // 2. Use the centralized robust restart logic
+    ConkyManager::restart_panels_with_verification({panel_name});
 }
 
 // Theme creator tab

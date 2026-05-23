@@ -303,8 +303,6 @@ bool ThemeManager::apply_theme_to_panel(const std::string& theme_name, const std
     bool write_success = copy_theme_to_panel(source_theme, destination_theme);
     if (write_success) {
         Utils::signal_all_conky_instances();
-        // Ensure all Conky panels across monitors refresh their layout
-        restart_conky_instances();
     }
     return write_success;
 }
@@ -340,11 +338,8 @@ bool ThemeManager::apply_global_theme(const std::string& theme_name, const std::
         theme_name_file.close();
     }
     
-    // Signal once after all files are written
     if (all_success) {
         Utils::signal_all_conky_instances();
-        // Restart all Conky processes to guarantee cross-monitor theme application
-        restart_conky_instances();
     }
 
     return all_success;

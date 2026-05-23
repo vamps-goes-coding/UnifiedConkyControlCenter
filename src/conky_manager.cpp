@@ -13,6 +13,7 @@
 #include <memory>
 #include <QProcess>
 #include <QTimer>
+#include <iostream>
 #include <stdexcept>
 #include <string_view>
 
@@ -163,22 +164,13 @@ void ConkyManager::kill_all_conky() {
         }
     }
 
-    // Wait briefly for graceful shutdown
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
     // Force kill any remaining tracked processes
     for (QProcess* p : _processes) {
         if (p && p->state() != QProcess::NotRunning) {
             p->kill();  // Force kill if still running
         }
     }
-
-    // Fallback: kill all conky processes system-wide
-    system("pkill -SIGTERM -f \"conky -c\"");
-    
-    // Wait briefly, then force kill if needed
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+    // Immediate hard kill for reliability on restart
     system("pkill -9 -f \"conky -c\"");
 
     // Clean up process handles
@@ -230,13 +222,22 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     p->setArguments({"-c", q_config_path});
     p->start();
 
-    if (p->waitForStarted(2000)) {
-        _processes.push_back(p.release());  // Transfer ownership to vector
+    if (p->waitForStarted(3000)) {
+        _processes.push_back(p.release());
         update_pid(panel_name, static_cast<int>(_processes.back()->processId()));
         return true;
     }
 
-    // waitForStarted failed — automatic cleanup via unique_ptr
+    // waitForStarted timed out but process may still have launched
+    {
+        std::string pgrep_cmd = "pgrep -f \"conky -c.*" + q_config_path.toStdString() + "\" > /dev/null 2>&1";
+        if (system(pgrep_cmd.c_str()) == 0) {
+            _processes.push_back(p.release());
+            update_pid(panel_name, 0);
+            return true;
+        }
+    }
+
     throw std::runtime_error("Failed to start Conky panel: " + panel_name);
 }
 
@@ -256,9 +257,6 @@ void ConkyManager::stop_panel(const std::string& panel_name) {
         }
     }
 
-    // Wait briefly for graceful shutdown, then force kill if needed
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
     // Force kill any remaining processes
     for (QProcess* p : _processes) {
         if (p && p->state() != QProcess::NotRunning) {
@@ -267,17 +265,9 @@ void ConkyManager::stop_panel(const std::string& panel_name) {
             }
         }
     }
-
-    // Fallback: try graceful termination first via pkill
-    std::string term_cmd = "pkill -SIGTERM -f \"conky -c.*" + config_path.filename().string() + "\"";
-    system(term_cmd.c_str());
-    
-    // Wait briefly, then force kill if needed
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+    // Use pkill -9 immediately for the specific config to ensure resource release
     std::string kill_cmd = "pkill -9 -f \"conky -c.*" + config_path.filename().string() + "\"";
     system(kill_cmd.c_str());
-
     remove_pid(panel_name);
 }
 
@@ -339,32 +329,16 @@ void ConkyManager::restart_active_panels() {
     kill_all_conky();
     _cached_running_configs.clear();
 
-    if (panels_to_restart.empty()) {
-        return;
-    }
+    if (panels_to_restart.empty()) return;
 
-    // 3. Wait (with polling) until pgrep confirms conky is fully gone.
-    //    This replaces the unreliable fixed sleep(1500).
-    //    Maximum wait: 3 000 ms in 200 ms increments.
     {
-        const int poll_interval_ms = 200;
-        const int max_wait_ms      = 3000;
-        int waited_ms              = 0;
-
-        while (waited_ms < max_wait_ms) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(poll_interval_ms));
-            waited_ms += poll_interval_ms;
-            if (get_running_configs_uncached().empty()) {
-                break; // Confirmed: all conky processes are dead
-            }
-        }
+        std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
+        _restart_pending = true;
     }
-
-    // 4. Schedule sequential panel starts back on the main thread via QTimer.
-    //    QProcess MUST be created on the main thread — this is the fix for
-    //    the intermittent panel drop that occurred with the old std::thread approach.
-    _restart_pending = true;
-    _scheduleSequentialStart(panels_to_restart, 0);
+    // kill_all_conky already waited for death, so shorter delay is fine
+    QTimer::singleShot(500, [panels_to_restart]() {
+        _scheduleSequentialStart(panels_to_restart, 0);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -387,11 +361,15 @@ void ConkyManager::_scheduleSequentialStart(const std::vector<std::string>& pane
     }
 
     // Start this panel immediately (we are on the main thread here)
-    start_panel(panels[index], true);
+    try {
+        start_panel(panels[index], true);
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: Failed to start panel '" << panels[index]
+                  << "' during restart: " << e.what() << std::endl;
+    }
 
-    // Schedule the next panel after a short gap to avoid display/compositor
-    // races when multiple Conky windows are initialising simultaneously.
-    QTimer::singleShot(600, [panels, index]() {
+    // Schedule the next panel after a short gap
+    QTimer::singleShot(400, [panels, index]() {
         ConkyManager::_scheduleSequentialStart(panels, index + 1);
     });
 }
@@ -463,9 +441,22 @@ void ConkyManager::start_all_panels() {
 }
 
 void ConkyManager::restart_panels_with_verification(const std::vector<std::string>& panels) {
-    // Use the same QTimer-based sequential start so QProcess stays on the main thread.
     if (panels.empty()) return;
-    _scheduleSequentialStart(panels, 0);
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
+        if (_restart_pending) return;
+        _restart_pending = true;
+    }
+
+    // Surgical stop: only stop the panels we intend to restart
+    for (const auto& panel : panels) {
+        stop_panel(panel);
+    }
+
+    QTimer::singleShot(500, [panels]() {
+        _scheduleSequentialStart(panels, 0);
+    });
 }
 
 void ConkyManager::_start_panels_sequence(const std::vector<std::string>& panels) {

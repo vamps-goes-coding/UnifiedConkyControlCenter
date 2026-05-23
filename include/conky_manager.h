@@ -55,7 +55,6 @@ private:
     static std::chrono::steady_clock::time_point _last_refresh_time;
     static std::vector<std::string> _cached_running_configs;
     static double _cache_time;
-    static std::thread _restart_thread;
     static bool _restart_pending;
     
     static std::vector<std::string> get_running_configs_uncached();
