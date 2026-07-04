@@ -56,6 +56,8 @@ private:
     static std::vector<std::string> _cached_running_configs;
     static double _cache_time;
     static bool _restart_pending;
+    static std::vector<std::string> _pending_panels;
+    static bool _pending_active_restart;
     
     static std::vector<std::string> get_running_configs_uncached();
     static void _start_panels_sequence(const std::vector<std::string>& panels);

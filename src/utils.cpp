@@ -277,9 +277,12 @@ void Utils::signal_all_conky_instances() {
             
             if (getline(comm_file, comm)) {
                 if (comm.find("conky") != std::string::npos) {
-                    pid_t pid = std::stoi(pid_str);
-                    // Send SIGUSR1 (Reload Config)
-                    kill(pid, SIGUSR1);
+                    try {
+                        pid_t pid = std::stoi(pid_str);
+                        kill(pid, SIGUSR1);
+                    } catch (...) {
+                        // Ignore malformed PID entries
+                    }
                 }
             }
         }

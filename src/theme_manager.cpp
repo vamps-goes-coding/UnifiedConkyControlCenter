@@ -300,11 +300,7 @@ bool ThemeManager::apply_theme_to_panel(const std::string& theme_name, const std
     fs::path source_theme = get_theme_file_path(theme_name, category_key);
     fs::path destination_theme = Utils::conky_wayland_directory() / (panel_name + "-theme.lua");
     
-    bool write_success = copy_theme_to_panel(source_theme, destination_theme);
-    if (write_success) {
-        Utils::signal_all_conky_instances();
-    }
-    return write_success;
+    return copy_theme_to_panel(source_theme, destination_theme);
 }
 
 bool ThemeManager::apply_global_theme(const std::string& theme_name, const std::string& category_key) {
@@ -338,10 +334,6 @@ bool ThemeManager::apply_global_theme(const std::string& theme_name, const std::
         theme_name_file.close();
     }
     
-    if (all_success) {
-        Utils::signal_all_conky_instances();
-    }
-
     return all_success;
 }
 

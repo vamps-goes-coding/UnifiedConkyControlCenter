@@ -3,6 +3,7 @@
 #include <sstream>
 #include <regex>
 #include <algorithm>
+#include <iostream>
 #include <stdexcept>
 #include <string_view>
 
@@ -17,8 +18,8 @@ std::string_view trim_view(std::string_view str) {
 
 // Modern C++ improvements: use constexpr for regex patterns
 // Note: std::regex requires std::string, not std::string_view
-const std::string GAP_X_PATTERN = "gap_x\\s*=\\s*(\\d+)";
-const std::string GAP_Y_PATTERN = "gap_y\\s*=\\s*(\\d+)";
+const std::string GAP_X_PATTERN = "gap_x\\s*=\\s*(-?\\d+)";
+const std::string GAP_Y_PATTERN = "gap_y\\s*=\\s*(-?\\d+)";
 const std::string COLOR_PATTERN = "color(\\d+)\\s*=\\s*'([^']+)'";
 const std::string META_NAME_PATTERN = "name\\s*=\\s*\"([^\"]+)\"";
 const std::string META_CATEGORY_PATTERN = "category\\s*=\\s*\"([^\"]+)\"";
@@ -107,7 +108,7 @@ int ConfigParser::get_gap_x(const fs::path& config_path) {
     std::string line;
     while (std::getline(file, line)) {
         std::smatch match;
-        if (std::regex_search(line, match, std::regex(GAP_X_PATTERN))) {
+        if (std::regex_search(line, match, RE_GAP_X)) {
             file.close();
             return std::stoi(match[1]);
         }
@@ -130,7 +131,7 @@ int ConfigParser::get_gap_y(const fs::path& config_path) {
     std::string line;
     while (std::getline(file, line)) {
         std::smatch match;
-        if (std::regex_search(line, match, std::regex(GAP_Y_PATTERN))) {
+        if (std::regex_search(line, match, RE_GAP_Y)) {
             file.close();
             return std::stoi(match[1]);
         }
@@ -155,9 +156,18 @@ bool ConfigParser::set_gap_values(const fs::path& config_path, int gap_x, int ga
     std::string content = buffer.str();
     file.close();
     
-    // Modern C++ improvements: use std::regex_replace with constexpr patterns
-    content = std::regex_replace(content, std::regex(GAP_X_PATTERN), "gap_x = " + std::to_string(gap_x));
-    content = std::regex_replace(content, std::regex(GAP_Y_PATTERN), "gap_y = " + std::to_string(gap_y));
+    // Modern C++ improvements: use std::regex_replace with pre-compiled patterns
+    std::string new_gap_x = "gap_x = " + std::to_string(gap_x);
+    std::string new_gap_y = "gap_y = " + std::to_string(gap_y);
+    
+    std::string replaced_x = std::regex_replace(content, RE_GAP_X, new_gap_x);
+    std::string replaced_y = std::regex_replace(replaced_x, RE_GAP_Y, new_gap_y);
+    
+    // Validate that replacements actually occurred
+    if (replaced_y == content) {
+        std::cerr << "ERROR: Neither gap_x nor gap_y found in: " << config_path << std::endl;
+        return false;
+    }
     
     // Write back to file
     std::ofstream out_file(config_path);
@@ -165,7 +175,7 @@ bool ConfigParser::set_gap_values(const fs::path& config_path, int gap_x, int ga
         throw std::runtime_error("Failed to write to configuration file: " + config_path.string());
     }
     
-    out_file << content;
+    out_file << replaced_y;
     out_file.close();
     return true;
 }

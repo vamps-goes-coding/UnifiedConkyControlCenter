@@ -8,7 +8,9 @@ ConkySyntaxHighlighter::ConkySyntaxHighlighter(QTextDocument* parent)
     keywordFormat.setFontWeight(QFont::Bold);
     
     QStringList keywordPatterns = {
-        "\\bown_window\\b", "\\bown_window_transparent\\b", "\\bown_window_colour\\b",
+        "\\bown_window\\b", "\\bown_window_type\\b", "\\bown_window_class\\b",
+        "\\bown_window_transparent\\b", "\\bown_window_colour\\b",
+        "\\bown_window_argb_visual\\b", "\\bown_window_argb_value\\b",
         "\\bown_window_hints\\b", "\\bbackground\\b", "\\bupdate_interval\\b",
         "\\btotal_run_times\\b", "\\bminimum_size\\b", "\\bmaximum_width\\b",
         "\\bdefault_bar_size\\b", "\\bdefault_gauge_size\\b", "\\bdefault_graph_size\\b",
@@ -22,9 +24,14 @@ ConkySyntaxHighlighter::ConkySyntaxHighlighter(QTextDocument* parent)
         "\\bpad_percents\\b", "\\btop_name_width\\b",
         "\\bif_up_strictness\\b", "\\bif_up_speed\\b",
         "\\bcpu_avg_samples\\b", "\\bnet_avg_samples\\b", "\\bdiskio_avg_samples\\b",
-        "\\bno_buffers\\b", "\\bout_to_console\\b", "\\bout_to_stderr\\b",
+        "\\bno_buffers\\b",
+        "\\bout_to_x\\b", "\\bout_to_wayland\\b",
+        "\\bout_to_console\\b", "\\bout_to_stderr\\b",
         "\\boverwrite_file\\b", "\\bappend_file\\b", "\\btop_name_verbose\\b",
-        "\\bimlib_cache_size\\b"
+        "\\blua_load\\b", "\\blua\\b",
+        "\\bimlib_cache_size\\b",
+        "\\buse_x11\\b", "\\buse_wayland\\b",
+        "\\bforce_utf8\\b", "\\btext_buffer_size\\b"
     };
     
     for (const QString& pattern : keywordPatterns) {

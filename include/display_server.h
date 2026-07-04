@@ -43,9 +43,6 @@ public:
     // Check if a specific display server is available
     static bool is_display_server_available(DisplayServerType type);
     
-    // Get recommended Conky flags for current display server
-    static std::string get_conky_flags();
-    
 private:
     // Detect display server from environment variables
     static DisplayServerType detect_from_environment();

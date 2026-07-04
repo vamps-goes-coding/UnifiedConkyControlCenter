@@ -1646,18 +1646,28 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     // Event handling
     QObject::connect(panel_combo, &QComboBox::currentTextChanged, [gap_x_spin, gap_y_spin, path_label](const QString& panel) {
         if (!panel.isEmpty()) {
-            load_gap_values(gap_x_spin, gap_y_spin, panel.toStdString());
-            std::string path = Utils::get_conky_config_path(panel.toStdString()).string();
-            path_label->setText(QString::fromStdString("Config Path: " + path));
+            try {
+                load_gap_values(gap_x_spin, gap_y_spin, panel.toStdString());
+                std::string path = Utils::get_conky_config_path(panel.toStdString()).string();
+                path_label->setText(QString::fromStdString("Config Path: " + path));
+            } catch (const std::exception& e) {
+                std::cerr << "ERROR loading gap values: " << e.what() << std::endl;
+            }
         }
     });
     
     QObject::connect(apply_btn, &QPushButton::clicked, [panel_combo, gap_x_spin, gap_y_spin]() {
         QString panel = panel_combo->currentText();
         if (panel.isEmpty()) return;
-        
-        apply_gap_changes(panel.toStdString(), gap_x_spin->value(), gap_y_spin->value());
-        show_tray_message("Gap Adjusted", QString("Updated gap for %1").arg(panel).toStdString());
+
+        try {
+            apply_gap_changes(panel.toStdString(), gap_x_spin->value(), gap_y_spin->value());
+            show_tray_message("Gap Adjusted", QString("Updated gap for %1").arg(panel).toStdString());
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR applying gap changes: " << e.what() << std::endl;
+            QMessageBox::warning(nullptr, "Error",
+                QString("Failed to apply gap changes:\n%1").arg(e.what()));
+        }
     });
     
     QObject::connect(refresh_btn, &QPushButton::clicked, [panel_combo, gap_x_spin, gap_y_spin]() {
@@ -1666,7 +1676,11 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     
     // Initial data load
     QTimer::singleShot(200, [panel_combo]() {
-        refresh_panels(panel_combo);
+        try {
+            refresh_panels(panel_combo);
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR in initial panel refresh: " << e.what() << std::endl;
+        }
     });
     
     return tab;
@@ -1697,14 +1711,27 @@ void UIManager::apply_gap_changes(const std::string& panel_name, int gap_x, int 
     std::string path = Utils::get_conky_config_path(panel_name).string();
 
     // 1. Save the new gap values to the config file first
-    if (!ConfigParser::set_gap_values(path, gap_x, gap_y)) {
+    try {
+        if (!ConfigParser::set_gap_values(path, gap_x, gap_y)) {
+            QMessageBox::warning(nullptr, "Gap Adjustment Failed",
+                QString::fromStdString("Could not write gap values to:\n" + path));
+            return;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR writing gap values: " << e.what() << std::endl;
         QMessageBox::warning(nullptr, "Gap Adjustment Failed",
-            QString::fromStdString("Could not write gap values to:\n" + path));
+            QString::fromStdString("Error writing gap values:\n" + std::string(e.what())));
         return;
     }
 
     // 2. Use the centralized robust restart logic
-    ConkyManager::restart_panels_with_verification({panel_name});
+    try {
+        ConkyManager::restart_panels_with_verification({panel_name});
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR restarting panel: " << e.what() << std::endl;
+        QMessageBox::warning(nullptr, "Restart Failed",
+            QString::fromStdString("Gap values saved but panel restart failed:\n" + std::string(e.what())));
+    }
 }
 
 // Theme creator tab
@@ -2129,7 +2156,7 @@ void UIManager::setup_system_tray() {
     
     // Connect double-click to show window
     QObject::connect(tray_icon_instance, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::DoubleClick) {
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) {
             show_main_window();
         }
     });

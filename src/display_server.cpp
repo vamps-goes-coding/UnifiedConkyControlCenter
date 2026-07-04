@@ -106,18 +106,6 @@ bool DisplayServer::is_display_server_available(DisplayServerType type) {
     }
 }
 
-std::string DisplayServer::get_conky_flags() {
-    if (is_wayland()) {
-        // Wayland-specific flags
-        return "--config=conky-wayland.conf";
-    } else if (is_x11()) {
-        // X11-specific flags
-        return "";
-    }
-    
-    return "";
-}
-
 DisplayServerType DisplayServer::detect_from_environment() {
     // Check WAYLAND_DISPLAY first (most reliable for Wayland)
     if (!get_wayland_display().empty()) {

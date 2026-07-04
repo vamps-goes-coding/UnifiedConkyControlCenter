@@ -51,6 +51,8 @@ std::chrono::steady_clock::time_point ConkyManager::_last_refresh_time;
 std::vector<std::string> ConkyManager::_cached_running_configs;
 double ConkyManager::_cache_time = 0.0;
 bool ConkyManager::_restart_pending = false;
+std::vector<std::string> ConkyManager::_pending_panels;
+bool ConkyManager::_pending_active_restart = false;
 
 // Modern C++ improvements: use std::optional for better error handling
 std::optional<std::string> get_running_config_path(const std::string& panel_name) {
@@ -171,7 +173,8 @@ void ConkyManager::kill_all_conky() {
         }
     }
     // Immediate hard kill for reliability on restart
-    system("pkill -9 -f \"conky -c\"");
+    // Match any conky process with -c in its arguments (may be preceded by -q -o etc.)
+    system("pkill -9 -f \"conky.*-c\"");
 
     // Clean up process handles
     for (QProcess* p : _processes) {
@@ -213,13 +216,15 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     // Create and start the new Conky process.
     // We do NOT daemonize (background = false in config) so that Qt can
     // track the child process lifetime via its process ID.
+    // Use -q (quiet) and -o (own-window) for explicit own-window creation;
+    // at the config level this is controlled by own_window = true.
     auto p = std::make_unique<QProcess>();
     p->setProgram("conky");
     QString q_config_path = QString::fromStdString(config_path.string());
     if (q_config_path.isEmpty()) {
         throw std::runtime_error("Invalid configuration path for panel: " + panel_name);
     }
-    p->setArguments({"-c", q_config_path});
+    p->setArguments({"-q", "-o", "-c", q_config_path});
     p->start();
 
     if (p->waitForStarted(3000)) {
@@ -266,7 +271,8 @@ void ConkyManager::stop_panel(const std::string& panel_name) {
         }
     }
     // Use pkill -9 immediately for the specific config to ensure resource release
-    std::string kill_cmd = "pkill -9 -f \"conky -c.*" + config_path.filename().string() + "\"";
+    // Match conky with -c <filename> (flags like -q -o may precede -c)
+    std::string kill_cmd = "pkill -9 -f \"conky.*" + config_path.filename().string() + "\"";
     system(kill_cmd.c_str());
     remove_pid(panel_name);
 }
@@ -279,7 +285,7 @@ void ConkyManager::reload_panel(const std::string& panel_name) {
 
         // Send SIGUSR1 to reload config on this specific instance
         // We target the specific config file to avoid reloading unrelated instances
-        std::string reload_cmd = "pkill -SIGUSR1 -f \"conky -c.*" + filename + "\"";
+        std::string reload_cmd = "pkill -SIGUSR1 -f \"conky.*" + filename + "\"";
         system(reload_cmd.c_str());
     } catch (...) {
         // Absorb filesystem exceptions to prevent app crash
@@ -306,6 +312,15 @@ void ConkyManager::reload_panel(const std::string& panel_name) {
 //        thread. This eliminates the race and the unreliable waitForStarted.
 // ---------------------------------------------------------------------------
 void ConkyManager::restart_active_panels() {
+    {
+        std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
+        if (_restart_pending) {
+            _pending_active_restart = true;
+            return;
+        }
+        _restart_pending = true;
+    }
+
     // 1. Snapshot which panels are currently running BEFORE we kill anything
     auto running_configs = get_running_configs(true);
     auto all_panels      = Utils::discover_panels();
@@ -352,11 +367,23 @@ void ConkyManager::restart_active_panels() {
 void ConkyManager::_scheduleSequentialStart(const std::vector<std::string>& panels, size_t index) {
     if (index >= panels.size()) {
         // All panels have been started — clear the pending flag
+        // and process any queued restart requests
+        std::vector<std::string> pending;
+        bool pending_active = false;
         {
             std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
             _restart_pending = false;
+            pending.swap(_pending_panels);
+            pending_active = _pending_active_restart;
+            _pending_active_restart = false;
         }
         g_restart_cv.notify_all();
+
+        if (pending_active) {
+            restart_active_panels();
+        } else if (!pending.empty()) {
+            restart_panels_with_verification(pending);
+        }
         return;
     }
 
@@ -445,7 +472,10 @@ void ConkyManager::restart_panels_with_verification(const std::vector<std::strin
 
     {
         std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
-        if (_restart_pending) return;
+        if (_restart_pending) {
+            _pending_panels.insert(_pending_panels.end(), panels.begin(), panels.end());
+            return;
+        }
         _restart_pending = true;
     }
 
@@ -470,7 +500,7 @@ std::vector<std::string> ConkyManager::get_running_configs_uncached() {
     std::vector<std::string> running_configs;
 
     // Be specific: only look for processes running with a config file
-    FILE* pipe = popen("pgrep -af 'conky -c'", "r");
+    FILE* pipe = popen("pgrep -af 'conky.*-c'", "r");
     if (!pipe) return running_configs;
 
     char buffer[1024];
