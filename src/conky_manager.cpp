@@ -1,5 +1,6 @@
 #include "conky_manager.h"
 #include "utils.h"
+#include "logger.h"
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
@@ -93,8 +94,10 @@ std::map<std::string, int> ConkyManager::load_tracked_pids() {
                 for (auto& [name, pid] : j.items()) {
                     pids[name] = pid.get<int>();
                 }
+            } catch (const std::exception& e) {
+                LOG_WARNING("Failed to parse active_panels.json: " + std::string(e.what()));
             } catch (...) {
-                // If file is corrupted, return empty
+                LOG_WARNING("Unknown error parsing active_panels.json");
             }
         }
     }
@@ -108,8 +111,10 @@ void ConkyManager::save_tracked_pids(const std::map<std::string, int>& pids) {
         if (file.is_open()) {
             file << j.dump(4);
         }
+    } catch (const std::exception& e) {
+        LOG_WARNING("Failed to save active_panels.json: " + std::string(e.what()));
     } catch (...) {
-        // Handle write errors
+        LOG_WARNING("Unknown error saving active_panels.json");
     }
 }
 
@@ -341,15 +346,20 @@ void ConkyManager::restart_active_panels() {
     }
 
     // 2. Kill everything and clear the cache immediately
-    kill_all_conky();
-    _cached_running_configs.clear();
-
-    if (panels_to_restart.empty()) return;
-
     {
         std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
-        _restart_pending = true;
+        kill_all_conky();
+        _cached_running_configs.clear();
     }
+
+    if (panels_to_restart.empty()) {
+        {
+            std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
+            _restart_pending = false;
+        }
+        return;
+    }
+
     // kill_all_conky already waited for death, so shorter delay is fine
     QTimer::singleShot(500, [panels_to_restart]() {
         _scheduleSequentialStart(panels_to_restart, 0);

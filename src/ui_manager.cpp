@@ -396,6 +396,10 @@ QWidget* UIManager::create_main_window() {
     sep2->setFrameShape(QFrame::VLine);
     sep2->setStyleSheet("background-color: #444c56; max-width: 1px;");
     
+    QFrame* sep3 = new QFrame();
+    sep3->setFrameShape(QFrame::VLine);
+    sep3->setStyleSheet("background-color: #444c56; max-width: 1px;");
+    
     // Last refreshed indicator
     QLabel* refresh_icon = new QLabel("🔄");
     refresh_icon->setStyleSheet("font-size: 16px; background: transparent; border: none;");
@@ -469,7 +473,7 @@ QWidget* UIManager::create_main_window() {
     status_layout->addLayout(theme_layout);
     status_layout->addWidget(sep2);
     status_layout->addLayout(refresh_layout);
-    status_layout->addWidget(sep2);
+    status_layout->addWidget(sep3);
     status_layout->addWidget(version_icon);
     status_layout->addWidget(version_label);
     status_layout->addWidget(spacer);

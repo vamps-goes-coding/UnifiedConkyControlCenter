@@ -10,6 +10,7 @@
 #include "error_handler.h"
 
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 #include <memory>
@@ -89,7 +90,11 @@ private:
 
     int getUserChoice() {
         int choice;
-        std::cin >> choice;
+        if (!(std::cin >> choice)) {
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            return -1;
+        }
         return choice;
     }
 
@@ -357,6 +362,7 @@ if (themeManager->apply_theme_to_panel(themeName, categoryKey, "all-media")) {
         std::cout << "Enter theme number: ";
         int themeNum;
         std::cin >> themeNum;
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         
         if (themeNum >= 1 && themeNum <= themes.size()) {
             std::string themeName = themes[themeNum - 1];
