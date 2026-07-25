@@ -8,6 +8,22 @@
 
 ---
 
+## 📸 Screenshots
+
+### Main Window
+![Theme Manager](screenshots/theme-manager.png)
+
+### Theme Control
+![Theme Control](screenshots/theme-control.png)
+
+### Preferences
+![Preferences Window](screenshots/prefences-window.png)
+
+### System Tray Menu
+![Tray Menu](screenshots/tray-menu.png)
+
+---
+
 ## ✨ What it does
 
 * Automatically finds all your existing Conky panels
