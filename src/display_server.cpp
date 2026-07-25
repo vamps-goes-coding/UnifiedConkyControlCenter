@@ -141,7 +141,15 @@ DisplayServerType DisplayServer::detect_from_processes() {
         "sway",
         "weston",
         "hyprland",
-        "river"
+        "river",
+        "labwc",
+        "cage",
+        "dwl",
+        "gamescope",
+        "newm",
+        "niri",
+        "qtile",
+        "wayfire"
     };
     
     for (const auto& compositor : wayland_compositors) {

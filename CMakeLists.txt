@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21) # Higher version for better Qt6 & FetchContent support 
-project(UnifiedConkyControlCenter VERSION 1.1.8 LANGUAGES CXX)
+project(UnifiedConkyControlCenter VERSION 1.1.9 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and modern Qt 6.8 features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -141,7 +141,7 @@ set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
 # RPM Package Configuration
 set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtwayland, qt6-qtbase-gui, conky")
-set(CPACK_RPM_PACKAGE_LICENSE "GPL")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 
 # TGZ/Archive Configuration
