@@ -179,7 +179,9 @@ void ConkyManager::kill_all_conky() {
     }
     // Immediate hard kill for reliability on restart
     // Match any conky process with -c in its arguments (may be preceded by -q -o etc.)
-    system("pkill -9 -f \"conky.*-c\"");
+    QProcess pkill_proc;
+    pkill_proc.start("pkill", QStringList() << "-9" << "-f" << "conky.*-c");
+    pkill_proc.waitForFinished(3000);
 
     // Clean up process handles
     for (QProcess* p : _processes) {
@@ -240,8 +242,10 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
 
     // waitForStarted timed out but process may still have launched
     {
-        std::string pgrep_cmd = "pgrep -f \"conky -c.*" + q_config_path.toStdString() + "\" > /dev/null 2>&1";
-        if (system(pgrep_cmd.c_str()) == 0) {
+        QProcess pgrep_proc;
+        pgrep_proc.start("pgrep", QStringList() << "-f" << QString::fromStdString("conky -c.*" + q_config_path.toStdString()));
+        pgrep_proc.waitForFinished(3000);
+        if (pgrep_proc.exitCode() == 0) {
             _processes.push_back(p.release());
             update_pid(panel_name, 0);
             return true;
@@ -277,8 +281,9 @@ void ConkyManager::stop_panel(const std::string& panel_name) {
     }
     // Use pkill -9 immediately for the specific config to ensure resource release
     // Match conky with -c <filename> (flags like -q -o may precede -c)
-    std::string kill_cmd = "pkill -9 -f \"conky.*" + config_path.filename().string() + "\"";
-    system(kill_cmd.c_str());
+    QProcess pkill_specific;
+    pkill_specific.start("pkill", QStringList() << "-9" << "-f" << QString::fromStdString("conky.*" + config_path.filename().string()));
+    pkill_specific.waitForFinished(3000);
     remove_pid(panel_name);
 }
 
@@ -290,8 +295,9 @@ void ConkyManager::reload_panel(const std::string& panel_name) {
 
         // Send SIGUSR1 to reload config on this specific instance
         // We target the specific config file to avoid reloading unrelated instances
-        std::string reload_cmd = "pkill -SIGUSR1 -f \"conky.*" + filename + "\"";
-        system(reload_cmd.c_str());
+        QProcess pkill_reload;
+        pkill_reload.start("pkill", QStringList() << "-SIGUSR1" << "-f" << QString::fromStdString("conky.*" + filename));
+        pkill_reload.waitForFinished(3000);
     } catch (...) {
         // Absorb filesystem exceptions to prevent app crash
     }

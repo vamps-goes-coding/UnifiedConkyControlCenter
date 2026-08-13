@@ -126,17 +126,10 @@ std::string get_current_conky_theme() {
 }
 
 void UIManager::run_application() {
-    std::cerr << "DEBUG: run_application called, app_instance=" << app_instance << std::endl;
     if (app_instance) {
-        std::cerr << "DEBUG: Calling verify_panel_state_on_startup" << std::endl;
         ConkyManager::verify_panel_state_on_startup();
-        std::cerr << "DEBUG: verify done, calling create_main_window" << std::endl;
-        
-std::cerr << "DEBUG: Calling create_main_window" << std::endl;
-create_main_window();
-std::cerr << "DEBUG: create_main_window done, instance=" << main_window_instance << std::endl;
-show_main_window();
-std::cerr << "DEBUG: show_main_window done" << std::endl;
+        create_main_window();
+        show_main_window();
         
         // Update status bar with current Conky theme
         if (main_window_instance) {

@@ -8,7 +8,7 @@ set -e
 # CONFIG — change version here only, nowhere else
 APP_NAME="UnifiedConkyControlCenter"
 APP_DISPLAY_NAME="Unified Conky Control Center"
-VERSION="v1.1.9"
+VERSION="v1.1.10"
 VERSION_NUM="${VERSION#v}"
 GITHUB_USER="vamps-goes-coding"
 GITHUB_REPO="UnifiedConkyControlCenter"
@@ -413,25 +413,25 @@ install_dependencies() {
             sudo_run apt-get update -y >> "$LOG_FILE" 2>&1
             command -v conky &>/dev/null || sudo_run apt-get install -y conky >> "$LOG_FILE" 2>&1
             # Try Qt6 first, fall back to Qt5
-            sudo_run apt-get install -y qt6-base-dev 2>/dev/null || \
+            sudo_run apt-get install -y qt6-base-dev qt6-wayland-dev nlohmann-json3-dev 2>/dev/null || \
                 sudo_run apt-get install -y qtbase5-dev >> "$LOG_FILE" 2>&1 || true
             ;;
         rpm_dnf)
             gui_progress_update 30 "Running dnf..."
             command -v conky &>/dev/null || sudo_run dnf install -y conky >> "$LOG_FILE" 2>&1
-            sudo_run dnf install -y qt6-qtbase 2>/dev/null || \
+            sudo_run dnf install -y qt6-qtbase qt6-qtwayland nlohmann-json-devel 2>/dev/null || \
                 sudo_run dnf install -y qt5-qtbase >> "$LOG_FILE" 2>&1 || true
             ;;
         rpm_zypper)
             gui_progress_update 30 "Running zypper..."
             command -v conky &>/dev/null || sudo_run zypper install -y conky >> "$LOG_FILE" 2>&1
-            sudo_run zypper install -y libqt6-qtbase 2>/dev/null || \
+            sudo_run zypper install -y libqt6-qtbase libqt6-qtwayland nlohmann-json-devel 2>/dev/null || \
                 sudo_run zypper install -y libqt5-qtbase >> "$LOG_FILE" 2>&1 || true
             ;;
         arch)
             gui_progress_update 30 "Running pacman..."
             command -v conky &>/dev/null || sudo_run pacman -S --noconfirm conky >> "$LOG_FILE" 2>&1
-            sudo_run pacman -S --noconfirm --needed qt6-base qt6-wayland >> "$LOG_FILE" 2>&1 || true
+            sudo_run pacman -S --noconfirm --needed qt6-base qt6-wayland nlohmann-json >> "$LOG_FILE" 2>&1 || true
             ;;
     esac
 
@@ -505,7 +505,7 @@ pkgdesc="A unified control center for managing Conky configurations across X11 a
 arch=(x86_64)
 url="https://github.com/${GITHUB_USER}/${GITHUB_REPO}"
 license=(GPL)
-depends=(conky qt6-base qt6-wayland)
+depends=(conky qt6-base qt6-wayland nlohmann-json)
 source=("${APP_NAME}-${VERSION_NUM}-Linux-x86_64.tar.gz")
 sha256sums=(SKIP)
 

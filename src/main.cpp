@@ -451,15 +451,11 @@ if (themeManager->apply_theme_to_panel(themeName, categoryKey, "all-media")) {
 
 int main(int argc, char* argv[]) {
     // Initialize logging system first
-    std::cerr << "DEBUG: main() started" << std::endl;
     auto& logger = Logger::instance();
-    std::cerr << "DEBUG: logger initialized" << std::endl;
     if (!logger.initialize()) {
         std::cerr << "Warning: Could not initialize logging system" << std::endl;
     }
-    std::cerr << "DEBUG: logger.initialize() done" << std::endl;
     LOG_INFO("Application starting: " + std::string(AppInfo::get_display_name()));
-    std::cerr << "DEBUG: LOG_INFO done" << std::endl;
     LOG_INFO("Version: " + std::string(AppInfo::get_version()));
     
     // Initialize configuration
@@ -526,9 +522,7 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        std::cerr << "DEBUG: About to call run_application" << std::endl;
-UIManager::run_application();
-std::cerr << "DEBUG: run_application returned" << std::endl;
+        UIManager::run_application();
         LOG_INFO("GUI mode exited normally");
         return 0;
     }
