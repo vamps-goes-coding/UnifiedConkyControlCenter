@@ -43,6 +43,7 @@ bool ConfigManager::load_config(const fs::path& config_path) {
             paths_config_.conky_themes_dir_env = paths.value("conky_themes_dir_env", paths_config_.conky_themes_dir_env);
             paths_config_.default_conky_subpath = paths.value("default_conky_subpath", paths_config_.default_conky_subpath);
             paths_config_.default_themes_subpath = paths.value("default_themes_subpath", paths_config_.default_themes_subpath);
+            paths_config_.conky_root_override = paths.value("conky_root_override", paths_config_.conky_root_override);
             paths_config_.display_server = paths.value("display_server", paths_config_.display_server);
 
             // Parse per-display-server overrides (optional).
@@ -55,6 +56,14 @@ bool ConfigManager::load_config(const fs::path& config_path) {
                     dsc.themes_subdir = val.value("themes_subdir", dsc.themes_subdir);
                     dsc.config_prefix = val.value("config_prefix", dsc.config_prefix);
                     dsc.config_extension = val.value("config_extension", dsc.config_extension);
+                    dsc.conky_binary = val.value("conky_binary", dsc.conky_binary);
+                    if (val.contains("conky_extra_args") && val["conky_extra_args"].is_array()) {
+                        dsc.conky_extra_args =
+                            val["conky_extra_args"].get<std::vector<std::string>>();
+                    }
+                    // Blank rows in the file must not stick: an empty
+                    // prefix/extension would hide every panel from discovery.
+                    dsc.normalize(key);
                     paths_config_.display_servers[key] = dsc;
                 }
             }
@@ -135,10 +144,27 @@ bool ConfigManager::load_config(const fs::path& config_path) {
 }
 
 fs::path ConfigManager::get_conky_wayland_directory() const {
-    // Check environment variable first
+    // Check environment variable first (explicit expert override; bypasses
+    // server resolution by design — use conky_root_override instead if you
+    // want switching to keep working).
     const char* env_dir = std::getenv(paths_config_.conky_wayland_dir_env.c_str());
     if (env_dir && strlen(env_dir) > 0) {
         return fs::path(env_dir);
+    }
+
+    // Persisted root from Preferences / first-run setup.
+    if (!paths_config_.conky_root_override.empty()) {
+        fs::path base(paths_config_.conky_root_override);
+        std::string subdir = get_active_config_subdir();
+        if (!subdir.empty()) {
+            fs::path subdir_path(subdir);
+            fs::path server_dir =
+                subdir_path.is_absolute() ? subdir_path : base / subdir_path;
+            if (fs::exists(server_dir)) {
+                return server_dir;
+            }
+        }
+        return base;
     }
 
     // Fall back to default path
@@ -147,10 +173,14 @@ fs::path ConfigManager::get_conky_wayland_directory() const {
         fs::path base = fs::path(home) / paths_config_.default_conky_subpath;
 
         // Resolve to the active display server's subdirectory so the panel
-        // discovery prefix and the directory stay in sync.
+        // discovery prefix and the directory stay in sync. An absolute
+        // subdir (e.g. user-browsed to /home/u/conky-confs/conky-x11) is
+        // used as-is instead of being appended to the base.
         std::string subdir = get_active_config_subdir();
         if (!subdir.empty()) {
-            fs::path server_dir = base / subdir;
+            fs::path subdir_path(subdir);
+            fs::path server_dir =
+                subdir_path.is_absolute() ? subdir_path : base / subdir_path;
             if (fs::exists(server_dir)) {
                 return server_dir;
             }
@@ -178,9 +208,27 @@ std::string ConfigManager::get_active_display_server_key() const {
         return paths_config_.display_server;
     }
 
-    // "auto" (or anything else) -> resolve live
+    // "auto" (or anything else) -> resolve live. Deliberately returns
+    // "unknown" when detection fails instead of guessing "x11": callers
+    // that need a working default use get_active_display_server_config()
+    // (safe fallback), while the UI surfaces "unknown" to the user.
     DisplayServerType type = DisplayServer::get_type();
-    return (type == DisplayServerType::Wayland) ? "wayland" : "x11";
+    if (type == DisplayServerType::Wayland) {
+        return "wayland";
+    } else if (type == DisplayServerType::X11) {
+        return "x11";
+    }
+    return "unknown";
+}
+
+void ConfigManager::set_display_server(const std::string& display_server) {
+    if (paths_config_.display_server == display_server) {
+        return;
+    }
+    paths_config_.display_server = display_server;
+    // The active server changed (or may have), so drop the cached
+    // auto-detection — the next "auto" resolution re-detects live.
+    DisplayServer::refresh();
 }
 
 const DisplayServerConfig& ConfigManager::get_active_display_server_config() const {
@@ -190,8 +238,19 @@ const DisplayServerConfig& ConfigManager::get_active_display_server_config() con
         return it->second;
     }
 
-    // Fallback to the static defaults embedded in the struct.
-    static const DisplayServerConfig x11_defaults;
+    // Fallback to static per-server defaults. NOTE: the struct's inline
+    // defaults are Wayland-flavored, so the X11 fallback must override the
+    // subdir/prefix explicitly — otherwise an unconfigured "x11" key would
+    // resolve to Wayland paths. An "unknown" key intentionally lands on the
+    // X11 fallback as a safe operational default; the "unknown" state itself
+    // stays visible via get_active_display_server_key() so the UI can prompt
+    // the user instead of silently guessing.
+    static const DisplayServerConfig x11_defaults = [] {
+        DisplayServerConfig d;
+        d.config_subdir = "conky-x11";
+        d.config_prefix = "conky-x11-";
+        return d;
+    }();
     static const DisplayServerConfig wayland_defaults;
     return (key == "wayland") ? wayland_defaults : x11_defaults;
 }
@@ -210,6 +269,14 @@ std::string ConfigManager::get_active_config_prefix() const {
 
 std::string ConfigManager::get_active_config_extension() const {
     return get_active_display_server_config().config_extension;
+}
+
+std::string ConfigManager::get_active_conky_binary() const {
+    return get_active_display_server_config().conky_binary;
+}
+
+std::vector<std::string> ConfigManager::get_active_conky_extra_args() const {
+    return get_active_display_server_config().conky_extra_args;
 }
 
 std::vector<std::string> ConfigManager::get_display_server_keys() const {
@@ -287,15 +354,82 @@ void ConfigManager::set_defaults() {
 }
 
 void ConfigManager::set_conky_config_path(const std::string& path) {
-    // Store the path in environment variable format
-    // This will be used by get_conky_wayland_directory()
-    setenv(paths_config_.conky_wayland_dir_env.c_str(), path.c_str(), 1);
+    // Persist the pick as the conky ROOT so display-server switching keeps
+    // resolving per-server folders underneath it. If the user picked a
+    // server subdirectory itself (e.g. ".../conky-confs/conky-x11"), store
+    // its parent — storing the subdir directly would break switching.
+    fs::path picked(path);
+    std::string leaf = picked.filename().string();
+    bool is_server_subdir = (leaf == "conky-x11" || leaf == "conky-wayland");
+    if (!is_server_subdir) {
+        for (const auto& [key, dsc] : paths_config_.display_servers) {
+            if (leaf == dsc.config_subdir) {
+                is_server_subdir = true;
+                break;
+            }
+        }
+    }
+    if (is_server_subdir && picked.has_parent_path()) {
+        paths_config_.conky_root_override = picked.parent_path().string();
+    } else if (!path.empty()) {
+        paths_config_.conky_root_override = path;
+    }
+    // Clear the legacy session-only env override so the persisted root wins.
+    unsetenv(paths_config_.conky_wayland_dir_env.c_str());
 }
 
 void ConfigManager::set_themes_path(const std::string& path) {
-    // Store the path in environment variable format
-    // This will be used by get_themes_directory()
+    // NOTE: session-only (process environment), like the conky path was
+    // before conky_root_override existed. Use the per-server themes_subdir
+    // overrides for anything that must survive a restart.
     setenv(paths_config_.conky_themes_dir_env.c_str(), path.c_str(), 1);
+}
+
+bool ConfigManager::save_display_server_selection() {
+    try {
+        // Resolve the file we would load from; fall back to the standard
+        // per-user location so a first switch still has somewhere to land.
+        fs::path config_path = find_config_file();
+        if (config_path.empty()) {
+            const char* home = std::getenv("HOME");
+            if (!home) {
+                return false;
+            }
+            config_path = fs::path(home) / ".config" / app_config_.internal_name / "app_config.json";
+            fs::create_directories(config_path.parent_path());
+        }
+
+        json config;
+        if (fs::exists(config_path)) {
+            std::ifstream in(config_path);
+            if (!in.is_open()) {
+                return false;
+            }
+            config = json::parse(in);
+        }
+        if (!config.is_object()) {
+            config = json::object();
+        }
+        if (!config.contains("paths") || !config["paths"].is_object()) {
+            config["paths"] = json::object();
+        }
+        config["paths"]["display_server"] = paths_config_.display_server;
+
+        fs::path tmp_path = config_path;
+        tmp_path += ".tmp";
+        {
+            std::ofstream out(tmp_path);
+            if (!out.is_open()) {
+                return false;
+            }
+            out << config.dump(4);
+        }
+        fs::rename(tmp_path, config_path);
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Error saving display server selection: " << e.what() << std::endl;
+        return false;
+    }
 }
 
 bool ConfigManager::save_config() {
@@ -333,6 +467,7 @@ bool ConfigManager::save_config() {
             {"conky_themes_dir_env", paths_config_.conky_themes_dir_env},
             {"default_conky_subpath", paths_config_.default_conky_subpath},
             {"default_themes_subpath", paths_config_.default_themes_subpath},
+            {"conky_root_override", paths_config_.conky_root_override},
             {"display_server", paths_config_.display_server}
         };
 
@@ -344,7 +479,9 @@ bool ConfigManager::save_config() {
                     {"config_subdir", dsc.config_subdir},
                     {"themes_subdir", dsc.themes_subdir},
                     {"config_prefix", dsc.config_prefix},
-                    {"config_extension", dsc.config_extension}
+                    {"config_extension", dsc.config_extension},
+                    {"conky_binary", dsc.conky_binary},
+                    {"conky_extra_args", dsc.conky_extra_args}
                 };
             }
             config["paths"]["display_servers"] = ds_map;

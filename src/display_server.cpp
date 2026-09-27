@@ -3,9 +3,11 @@
 #include "config_manager.h"
 
 #include <cstdlib>
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <vector>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -13,21 +15,33 @@
 #include <dirent.h>
 #endif
 
+namespace {
+// File-scope detection cache so refresh() can invalidate it.
+DisplayServerType g_cached_type = DisplayServerType::Unknown;
+bool g_cache_valid = false;
+
+void invalidate_cache() {
+    g_cache_valid = false;
+}
+}
+
 DisplayServerType DisplayServer::get_type() {
-    static DisplayServerType cached_type = DisplayServerType::Unknown;
-    static bool cached = false;
-    
-    if (!cached) {
-        cached_type = detect_from_environment();
-        if (cached_type == DisplayServerType::Unknown) {
-            cached_type = detect_from_processes();
+    if (!g_cache_valid) {
+        g_cached_type = detect_from_environment();
+        if (g_cached_type == DisplayServerType::Unknown) {
+            g_cached_type = detect_from_processes();
         }
-        cached = true;
-        
+        g_cache_valid = true;
+
         LOG_INFO("Detected display server: " + get_type_string());
     }
-    
-    return cached_type;
+
+    return g_cached_type;
+}
+
+void DisplayServer::refresh() {
+    invalidate_cache();
+    LOG_INFO("Display server detection cache cleared; will re-detect on next query");
 }
 
 std::string DisplayServer::get_type_string() {
@@ -49,28 +63,6 @@ bool DisplayServer::is_wayland() {
     return get_type() == DisplayServerType::Wayland;
 }
 
-fs::path DisplayServer::get_conky_config_directory() {
-    auto& config = ConfigManager::instance();
-    // ConfigManager::get_conky_wayland_directory() already resolves to the
-    // active display server's subdirectory, so just return it as-is.
-    return config.get_conky_wayland_directory();
-}
-
-std::string DisplayServer::get_config_prefix() {
-    if (is_wayland()) {
-        return "conky-wayland-";
-    } else if (is_x11()) {
-        return "conky-x11-";
-    }
-    
-    // Default prefix
-    return "conky-";
-}
-
-std::string DisplayServer::get_config_extension() {
-    return ".conf";
-}
-
 std::string DisplayServer::get_display_variable() {
     const char* display = std::getenv("DISPLAY");
     return display ? display : "";
@@ -81,12 +73,54 @@ std::string DisplayServer::get_wayland_display() {
     return wayland_display ? wayland_display : "";
 }
 
+bool DisplayServer::wayland_socket_exists(const std::string& name) {
+    if (name.empty()) {
+        return false;
+    }
+    fs::path sock(name);
+    if (sock.is_absolute()) {
+        return fs::exists(sock);
+    }
+    // Relative names live under $XDG_RUNTIME_DIR (e.g. "wayland-0").
+    const char* runtime_dir = std::getenv("XDG_RUNTIME_DIR");
+    if (runtime_dir && *runtime_dir) {
+        if (fs::exists(fs::path(runtime_dir) / sock)) {
+            return true;
+        }
+    }
+    // Fall back to a relative lookup in case the caller already chdir'd
+    // into the runtime dir (unlikely, but harmless).
+    return fs::exists(sock);
+}
+
+bool DisplayServer::x11_socket_exists(const std::string& display) {
+    if (display.empty()) {
+        return false;
+    }
+    // DISPLAY forms: ":0", ":0.0", "hostname:0", "/tmp/...". Extract the
+    // display number after the last ':' and check /tmp/.X11-unix/X<n>.
+    std::string::size_type colon = display.rfind(':');
+    if (colon == std::string::npos) {
+        return false;
+    }
+    std::string rest = display.substr(colon + 1);
+    std::string::size_type dot = rest.find('.');
+    std::string number = (dot == std::string::npos) ? rest : rest.substr(0, dot);
+    if (number.empty() ||
+        !std::all_of(number.begin(), number.end(), ::isdigit)) {
+        return false;
+    }
+    return fs::exists(fs::path("/tmp/.X11-unix") / ("X" + number));
+}
+
 bool DisplayServer::is_display_server_available(DisplayServerType type) {
     switch (type) {
         case DisplayServerType::X11:
-            return !get_display_variable().empty();
+            // $DISPLAY is often set even without a real X server (notably
+            // under XWayland), so require the socket to exist too.
+            return x11_socket_exists(get_display_variable());
         case DisplayServerType::Wayland:
-            return !get_wayland_display().empty();
+            return wayland_socket_exists(get_wayland_display());
         default:
             return false;
     }
@@ -120,7 +154,13 @@ DisplayServerType DisplayServer::detect_from_environment() {
 }
 
 DisplayServerType DisplayServer::detect_from_processes() {
-    // Check for Wayland compositor processes
+    // Check for Wayland compositor processes.
+    // NOTE: Xwayland is deliberately in this list — it only ever runs as
+    // a nested X server *under* a Wayland compositor, so its presence
+    // means the session is Wayland-based (critical for hybrid desktops
+    // where WAYLAND_DISPLAY may be unset in some contexts).
+    // NOTE: qtile is NOT here — it defaults to X11 (its Wayland backend
+    // is experimental), and X11 qtile sessions must not misdetect.
     std::vector<std::string> wayland_compositors = {
         "gnome-shell",
         "kwin_wayland",
@@ -134,8 +174,8 @@ DisplayServerType DisplayServer::detect_from_processes() {
         "gamescope",
         "newm",
         "niri",
-        "qtile",
-        "wayfire"
+        "wayfire",
+        "Xwayland"
     };
     
     for (const auto& compositor : wayland_compositors) {

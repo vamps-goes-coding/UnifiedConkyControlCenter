@@ -64,6 +64,8 @@ private:
     QPushButton* themesSubdirBrowse;
     QLineEdit* configPrefixEdit2;
     QLineEdit* configExtensionEdit2;
+    QLineEdit* conkyBinaryEdit;
+    QLineEdit* conkyExtraArgsEdit;
 
     // Live resolved paths
     QLineEdit* resolvedConkyPathEdit;

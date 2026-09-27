@@ -1,4 +1,5 @@
 #include "conky_manager.h"
+#include "config_manager.h"
 #include "utils.h"
 #include "logger.h"
 #include <nlohmann/json.hpp>
@@ -223,15 +224,24 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     // Create and start the new Conky process.
     // We do NOT daemonize (background = false in config) so that Qt can
     // track the child process lifetime via its process ID.
-    // Use -q (quiet) and -o (own-window) for explicit own-window creation;
-    // at the config level this is controlled by own_window = true.
+    // Binary and leading flags come from the active display server's
+    // config (DisplayServerConfig::conky_binary / conky_extra_args), so
+    // systems with separate X11 and Wayland conky builds launch correctly.
+    // Defaults preserve the historical flags: quiet + explicit own-window
+    // (at the config level this is controlled by own_window = true).
     auto p = std::make_unique<QProcess>();
-    p->setProgram("conky");
+    const auto& cfg = ConfigManager::instance();
+    p->setProgram(QString::fromStdString(cfg.get_active_conky_binary()));
+    QStringList args;
+    for (const auto& a : cfg.get_active_conky_extra_args()) {
+        args << QString::fromStdString(a);
+    }
     QString q_config_path = QString::fromStdString(config_path.string());
     if (q_config_path.isEmpty()) {
         throw std::runtime_error("Invalid configuration path for panel: " + panel_name);
     }
-    p->setArguments({"-q", "-o", "-c", q_config_path});
+    args << "-c" << q_config_path;
+    p->setArguments(args);
     p->start();
 
     if (p->waitForStarted(3000)) {

@@ -2,14 +2,14 @@
   "application": {
     "display_name": "Unified Conky Control Center",
     "internal_name": "UnifiedConkyControlCenter",
-    "version": "1.1.11",
+    "version": "1.1.12",
     "organization": "Conky",
     "github_url": "https://github.com/vamps-goes-coding/UnifiedConkyControlCenter"
   },
   "paths": {
     "conky_wayland_dir_env": "CONKY_WAYLAND_DIR",
     "conky_themes_dir_env": "CONKY_THEMES_DIR",
-    "default_conky_subpath": "conky-confs/conky-wayland",
+    "default_conky_subpath": "conky-confs",
     "default_themes_subpath": "themes",
     "display_server": "auto",
     "display_servers": {
@@ -17,13 +17,17 @@
         "config_subdir": "conky-x11",
         "themes_subdir": "themes",
         "config_prefix": "conky-x11-",
-        "config_extension": ".conf"
+        "config_extension": ".conf",
+        "conky_binary": "conky",
+        "conky_extra_args": ["-q", "-o"]
       },
       "wayland": {
         "config_subdir": "conky-wayland",
         "themes_subdir": "themes",
         "config_prefix": "conky-wayland-",
-        "config_extension": ".conf"
+        "config_extension": ".conf",
+        "conky_binary": "conky",
+        "conky_extra_args": ["-q", "-o"]
       }
     }
   },

@@ -274,6 +274,14 @@ void PreferencesDialog::setupUI() {
     configExtensionEdit2 = new QLineEdit();
     overridesLayout->addRow("Config extension:", configExtensionEdit2);
 
+    conkyBinaryEdit = new QLineEdit();
+    conkyBinaryEdit->setPlaceholderText("conky");
+    overridesLayout->addRow("Conky binary:", conkyBinaryEdit);
+
+    conkyExtraArgsEdit = new QLineEdit();
+    conkyExtraArgsEdit->setPlaceholderText("-q -o");
+    overridesLayout->addRow("Extra args (space-separated):", conkyExtraArgsEdit);
+
     connect(subdirBrowse, &QPushButton::clicked, [this]() {
         QString dir = QFileDialog::getExistingDirectory(this, "Select Config Subdir", configSubdirEdit->text());
         if (!dir.isEmpty()) configSubdirEdit->setText(dir);
@@ -386,6 +394,8 @@ void PreferencesDialog::setupUI() {
     });
     connect(serverKeyCombo, &QComboBox::currentIndexChanged, this, &PreferencesDialog::loadServerOverrides);
     connect(configSubdirEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(conkyBinaryEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(conkyExtraArgsEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
     connect(themesSubdirEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
     connect(configPrefixEdit2, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
     connect(configExtensionEdit2, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
@@ -489,16 +499,34 @@ void PreferencesDialog::loadServerOverrides() {
     themesSubdirEdit->blockSignals(true);
     configPrefixEdit2->blockSignals(true);
     configExtensionEdit2->blockSignals(true);
+    conkyBinaryEdit->blockSignals(true);
+    conkyExtraArgsEdit->blockSignals(true);
 
     configSubdirEdit->setText( QString::fromStdString(dsc.config_subdir));
     themesSubdirEdit->setText( QString::fromStdString(dsc.themes_subdir));
     configPrefixEdit2->setText( QString::fromStdString(dsc.config_prefix));
     configExtensionEdit2->setText( QString::fromStdString(dsc.config_extension));
+    conkyBinaryEdit->setText( QString::fromStdString(dsc.conky_binary));
+    QStringList argParts;
+    for (const auto& a : dsc.conky_extra_args) {
+        argParts << QString::fromStdString(a);
+    }
+    conkyExtraArgsEdit->setText(argParts.join(" "));
 
     configSubdirEdit->blockSignals(false);
     themesSubdirEdit->blockSignals(false);
     configPrefixEdit2->blockSignals(false);
     configExtensionEdit2->blockSignals(false);
+    conkyBinaryEdit->blockSignals(false);
+    conkyExtraArgsEdit->blockSignals(false);
+}
+
+static std::vector<std::string> split_extra_args(const QString& text) {
+    std::vector<std::string> out;
+    for (const QString& part : text.split(" ", Qt::SkipEmptyParts)) {
+        out.push_back(part.trimmed().toStdString());
+    }
+    return out;
 }
 
 void PreferencesDialog::updateResolvedPaths() {
@@ -511,6 +539,17 @@ void PreferencesDialog::updateResolvedPaths() {
     dsc.themes_subdir = themesSubdirEdit->text().toStdString();
     dsc.config_prefix = configPrefixEdit2->text().toStdString();
     dsc.config_extension = configExtensionEdit2->text().toStdString();
+    dsc.conky_binary = conkyBinaryEdit->text().trimmed().toStdString();
+    if (dsc.conky_binary.empty()) {
+        dsc.conky_binary = "conky";
+    }
+    dsc.conky_extra_args = split_extra_args(conkyExtraArgsEdit->text());
+
+    // Never persist or preview with blank rows: an empty prefix/extension
+    // would make panel discovery match nothing (empty Start/Stop list).
+    // NOTE: key is captured before dsc (which is a reference into the map).
+    const std::string editing_server_key = serverKeyCombo->currentData().toString().toStdString();
+    dsc.normalize(editing_server_key);
 
     resolvedConkyPathEdit->setText( QString::fromStdString(config.get_conky_wayland_directory().string()));
     resolvedThemesPathEdit->setText( QString::fromStdString(config.get_themes_directory().string()));
@@ -565,8 +604,11 @@ void PreferencesDialog::saveAndAccept() {
     config.get_ui_config().window.default_width = defaultWidthSpin->value();
     config.get_ui_config().window.default_height = defaultHeightSpin->value();
     
-    // Update Display Server
-    config.set_display_server(displayServerCombo->currentData().toString().toStdString());
+    // Update Display Server. Route through the central switch so running
+    // panels migrate to the new server's folder (no-op if unchanged).
+    const std::string new_server = displayServerCombo->currentData().toString().toStdString();
+    const bool server_changed =
+        (ConfigManager::instance().get_display_server() != new_server);
 
     // Persist per-display-server overrides for the server currently being edited
     QString editingKey = serverKeyCombo->currentData().toString();
@@ -575,13 +617,28 @@ void PreferencesDialog::saveAndAccept() {
     dsc.themes_subdir = themesSubdirEdit->text().toStdString();
     dsc.config_prefix = configPrefixEdit2->text().toStdString();
     dsc.config_extension = configExtensionEdit2->text().toStdString();
+    dsc.conky_binary = conkyBinaryEdit->text().trimmed().toStdString();
+    if (dsc.conky_binary.empty()) {
+        dsc.conky_binary = "conky";
+    }
+    dsc.conky_extra_args = split_extra_args(conkyExtraArgsEdit->text());
+
+    // Never persist or preview with blank rows: an empty prefix/extension
+    // would make panel discovery match nothing (empty Start/Stop list).
+    // NOTE: key is captured before dsc (which is a reference into the map).
+    const std::string editing_server_key = serverKeyCombo->currentData().toString().toStdString();
+    dsc.normalize(editing_server_key);
 
     // Update Theme Settings
     config.get_themes_config().file_extension = themeExtensionEdit->text().toStdString();
     config.get_themes_config().current_theme_file = currentThemeFileEdit->text().toStdString();
     
     if (config.save_config()) {
-        UIManager::refresh_display_server_button();
+        if (server_changed) {
+            UIManager::switch_display_server(new_server);
+        } else {
+            UIManager::refresh_display_server_button();
+        }
         accept();
     } else {
         QMessageBox::critical(this, "Error", "Failed to save configuration to app_config.json");

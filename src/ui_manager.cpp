@@ -1,6 +1,7 @@
 #include "ui_manager.h"
 #include "app_info.h"
 #include "conky_manager.h"
+#include "logger.h"
 #include "utils.h"
 #include "config_parser.h"
 #include "config_manager.h"
@@ -126,6 +127,91 @@ void UIManager::refresh_display_server_button() {
     if (!g_display_server_button) return;
     std::string server = ConfigManager::instance().get_active_display_server_key();
     g_display_server_button->setText( QString::fromUtf8("🖥️  " + server) );
+}
+
+void UIManager::switch_display_server(const std::string& server) {
+    auto& config = ConfigManager::instance();
+    const std::string previous = config.get_active_display_server_key();
+
+    // 1. Snapshot which panel IDs are running under the CURRENT (old) server,
+    //    before the switch changes path resolution out from under us.
+    std::vector<std::string> running_ids;
+    {
+        auto old_panels = Utils::discover_panels();
+        auto running = ConkyManager::get_running_configs(true);
+        for (const auto& panel : old_panels) {
+            std::string expected;
+            try {
+                expected = fs::absolute(Utils::get_conky_config_path(panel)).string();
+            } catch (...) {
+                continue;
+            }
+            for (const auto& r : running) {
+                try {
+                    if (fs::absolute(fs::path(r)).string() == expected) {
+                        running_ids.push_back(panel);
+                        break;
+                    }
+                } catch (...) {
+                    // Ignore unparseable entries in the process list
+                }
+            }
+        }
+    }
+
+    // 2. Flip the server (also drops the auto-detection cache) and update UI.
+    // Persist just the selection so the switch survives app restarts.
+    config.set_display_server(server);
+    config.save_display_server_selection();
+    refresh_display_server_button();
+
+    if (running_ids.empty()) {
+        // Nothing to migrate — just point the UI at the new folder.
+        refresh_all_tabs();
+        return;
+    }
+
+    // 3. Stop the old server's panels. Scoped to a full kill because the old
+    //    filenames no longer resolve under the new server, so per-panel
+    //    stops would miss them. (Same primitive restart_active_panels uses.)
+    ConkyManager::kill_all_conky();
+
+    // 4. Partition into panels that exist under the new server vs. orphans.
+    std::vector<std::string> to_start;
+    std::vector<std::string> missing;
+    for (const auto& panel : running_ids) {
+        fs::path new_path;
+        try {
+            new_path = Utils::get_conky_config_path(panel);
+        } catch (...) {
+            missing.push_back(panel);
+            continue;
+        }
+        if (fs::exists(new_path)) {
+            to_start.push_back(panel);
+        } else {
+            missing.push_back(panel);
+        }
+    }
+
+    // 5. Staggered start under the new server (reuses the verified sequence).
+    ConkyManager::restart_panels_with_verification(to_start);
+    refresh_all_tabs();
+
+    // 6. Report panels that had no counterpart so the user can create them.
+    if (!missing.empty()) {
+        std::string names;
+        for (size_t i = 0; i < missing.size(); ++i) {
+            if (i) names += ", ";
+            names += missing[i];
+        }
+        LOG_WARNING("Display server switch: no counterpart for panel(s): " + names);
+        QMessageBox::information(nullptr, "Display Server Switched",
+            QString::fromStdString(
+                "Switched to " + config.get_active_display_server_key() +
+                ". These running panels have no matching config in the new "
+                "server's folder and were left stopped: " + names));
+    }
 }
 
 std::string UIManager::current_mode() {
@@ -345,18 +431,15 @@ QPushButton* ds_btn = new QPushButton();
     QMenu* ds_menu = new QMenu(window);
     QAction* ds_x11 = ds_menu->addAction("X11");
     QObject::connect(ds_x11, &QAction::triggered, []() {
-        ConfigManager::instance().set_display_server("x11");
-        UIManager::refresh_display_server_button();
+        UIManager::switch_display_server("x11");
     });
     QAction* ds_wayland = ds_menu->addAction("Wayland");
     QObject::connect(ds_wayland, &QAction::triggered, []() {
-        ConfigManager::instance().set_display_server("wayland");
-        UIManager::refresh_display_server_button();
+        UIManager::switch_display_server("wayland");
     });
     QAction* ds_auto = ds_menu->addAction("Auto-detect");
     QObject::connect(ds_auto, &QAction::triggered, []() {
-        ConfigManager::instance().set_display_server("auto");
-        UIManager::refresh_display_server_button();
+        UIManager::switch_display_server("auto");
     });
     ds_btn->setMenu(ds_menu);
 
@@ -738,6 +821,15 @@ QWidget* UIManager::create_start_stop_tab(QWidget* parent) {
     QLabel* title = new QLabel("Start/Stop");
     title->setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;");
     main_layout->addWidget(title);
+
+    // Active-folder indicator: shows which display server's panel set is
+    // listed below (the per-card names are identical across servers, so the
+    // toolbar dropdown alone doesn't tell you). Text is refreshed by
+    // refresh_panel_status() on every cycle and after each server switch.
+    QLabel* server_indicator = new QLabel();
+    server_indicator->setObjectName("serverIndicatorLabel");
+    server_indicator->setStyleSheet("font-size: 12px; color: #8b949e; margin-bottom: 5px;");
+    main_layout->addWidget(server_indicator);
     
     // Panel status grid in a scroll area
     QGroupBox* status_group = new QGroupBox("Panel Status");
@@ -847,6 +939,30 @@ void UIManager::refresh_panel_status(QTableWidget* /*deprecated_table*/, QGridLa
     // Get panels and running configs
     auto panels = Utils::discover_panels();
     auto running_configs_raw = ConkyManager::get_running_configs(true);
+
+    // Update the active-folder indicator so it's always obvious which
+    // server's panel set is listed (names are identical across servers).
+    if (main_window_instance) {
+        QLabel* indicator =
+            main_window_instance->findChild<QLabel*>("serverIndicatorLabel");
+        if (indicator) {
+            const auto& cfg = ConfigManager::instance();
+            std::string key = cfg.get_active_display_server_key();
+            std::string pretty = key;
+            if (!pretty.empty()) {
+                pretty[0] = static_cast<char>(std::toupper(pretty[0]));
+            }
+            std::string dir;
+            try {
+                dir = Utils::conky_wayland_directory().string();
+            } catch (...) {
+                dir = "?";
+            }
+            indicator->setText(QString::fromStdString(
+                "Showing " + pretty + " panels  •  " + dir +
+                "  •  " + std::to_string(panels.size()) + " panels"));
+        }
+    }
     
     // Pre-calculate absolute paths for running configs
     std::vector<std::string> running_configs;
