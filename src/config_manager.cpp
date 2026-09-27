@@ -1,4 +1,5 @@
 #include "config_manager.h"
+#include "display_server.h"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -42,6 +43,21 @@ bool ConfigManager::load_config(const fs::path& config_path) {
             paths_config_.conky_themes_dir_env = paths.value("conky_themes_dir_env", paths_config_.conky_themes_dir_env);
             paths_config_.default_conky_subpath = paths.value("default_conky_subpath", paths_config_.default_conky_subpath);
             paths_config_.default_themes_subpath = paths.value("default_themes_subpath", paths_config_.default_themes_subpath);
+            paths_config_.display_server = paths.value("display_server", paths_config_.display_server);
+
+            // Parse per-display-server overrides (optional).
+            if (paths.contains("display_servers") && paths["display_servers"].is_object()) {
+                paths_config_.display_servers.clear();
+                for (const auto& [key, val] : paths["display_servers"].items()) {
+                    if (!val.is_object()) continue;
+                    DisplayServerConfig dsc;
+                    dsc.config_subdir = val.value("config_subdir", dsc.config_subdir);
+                    dsc.themes_subdir = val.value("themes_subdir", dsc.themes_subdir);
+                    dsc.config_prefix = val.value("config_prefix", dsc.config_prefix);
+                    dsc.config_extension = val.value("config_extension", dsc.config_extension);
+                    paths_config_.display_servers[key] = dsc;
+                }
+            }
         }
         
         // Parse panel discovery config
@@ -124,13 +140,25 @@ fs::path ConfigManager::get_conky_wayland_directory() const {
     if (env_dir && strlen(env_dir) > 0) {
         return fs::path(env_dir);
     }
-    
+
     // Fall back to default path
     const char* home = std::getenv("HOME");
     if (home) {
-        return fs::path(home) / paths_config_.default_conky_subpath;
+        fs::path base = fs::path(home) / paths_config_.default_conky_subpath;
+
+        // Resolve to the active display server's subdirectory so the panel
+        // discovery prefix and the directory stay in sync.
+        std::string subdir = get_active_config_subdir();
+        if (!subdir.empty()) {
+            fs::path server_dir = base / subdir;
+            if (fs::exists(server_dir)) {
+                return server_dir;
+            }
+            return base;
+        }
+        return base;
     }
-    
+
     return fs::current_path();
 }
 
@@ -140,9 +168,61 @@ fs::path ConfigManager::get_themes_directory() const {
     if (env_dir && strlen(env_dir) > 0) {
         return fs::path(env_dir);
     }
-    
+
     // Fall back to default path
     return get_conky_wayland_directory() / paths_config_.default_themes_subpath;
+}
+
+std::string ConfigManager::get_active_display_server_key() const {
+    if (paths_config_.display_server == "x11" || paths_config_.display_server == "wayland") {
+        return paths_config_.display_server;
+    }
+
+    // "auto" (or anything else) -> resolve live
+    DisplayServerType type = DisplayServer::get_type();
+    return (type == DisplayServerType::Wayland) ? "wayland" : "x11";
+}
+
+const DisplayServerConfig& ConfigManager::get_active_display_server_config() const {
+    std::string key = get_active_display_server_key();
+    auto it = paths_config_.display_servers.find(key);
+    if (it != paths_config_.display_servers.end()) {
+        return it->second;
+    }
+
+    // Fallback to the static defaults embedded in the struct.
+    static const DisplayServerConfig x11_defaults;
+    static const DisplayServerConfig wayland_defaults;
+    return (key == "wayland") ? wayland_defaults : x11_defaults;
+}
+
+std::string ConfigManager::get_active_config_subdir() const {
+    return get_active_display_server_config().config_subdir;
+}
+
+std::string ConfigManager::get_active_themes_subdir() const {
+    return get_active_display_server_config().themes_subdir;
+}
+
+std::string ConfigManager::get_active_config_prefix() const {
+    return get_active_display_server_config().config_prefix;
+}
+
+std::string ConfigManager::get_active_config_extension() const {
+    return get_active_display_server_config().config_extension;
+}
+
+std::vector<std::string> ConfigManager::get_display_server_keys() const {
+    std::vector<std::string> keys = {"x11", "wayland"};
+    return keys;
+}
+
+DisplayServerConfig& ConfigManager::get_display_server_config(const std::string& key) {
+    auto it = paths_config_.display_servers.find(key);
+    if (it != paths_config_.display_servers.end()) {
+        return it->second;
+    }
+    return paths_config_.display_servers[key];  // inserts default-constructed entry
 }
 
 fs::path ConfigManager::find_config_file() const {
@@ -252,8 +332,23 @@ bool ConfigManager::save_config() {
             {"conky_wayland_dir_env", paths_config_.conky_wayland_dir_env},
             {"conky_themes_dir_env", paths_config_.conky_themes_dir_env},
             {"default_conky_subpath", paths_config_.default_conky_subpath},
-            {"default_themes_subpath", paths_config_.default_themes_subpath}
+            {"default_themes_subpath", paths_config_.default_themes_subpath},
+            {"display_server", paths_config_.display_server}
         };
+
+        // Per-display-server overrides (optional)
+        if (!paths_config_.display_servers.empty()) {
+            json ds_map = json::object();
+            for (const auto& [key, dsc] : paths_config_.display_servers) {
+                ds_map[key] = {
+                    {"config_subdir", dsc.config_subdir},
+                    {"themes_subdir", dsc.themes_subdir},
+                    {"config_prefix", dsc.config_prefix},
+                    {"config_extension", dsc.config_extension}
+                };
+            }
+            config["paths"]["display_servers"] = ds_map;
+        }
         
         // Panel discovery config
         config["panel_discovery"] = {

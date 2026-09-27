@@ -130,19 +130,20 @@ void FirstRunSetup::loadDefaults() {
     // Try to find default Conky config path
     QString homePath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    auto& cfg = ConfigManager::instance();
     
     // Detect display server and suggest appropriate path
     DisplayServerType detected = DisplayServer::get_type();
     QString suggestedPath;
     
-    if (detected == DisplayServerType::Wayland) {
-        suggestedPath = homePath + "/conky-confs/conky-wayland";
+if (detected == DisplayServerType::Wayland) {
+        suggestedPath = homePath + "/" + QString::fromStdString(cfg.get_active_config_subdir());
         displayServerCombo_->setCurrentIndex(2);  // Wayland
     } else if (detected == DisplayServerType::X11) {
-        suggestedPath = homePath + "/conky-confs/conky-x11";
+        suggestedPath = homePath + "/" + QString::fromStdString(cfg.get_active_config_subdir());
         displayServerCombo_->setCurrentIndex(1);  // X11
     } else {
-        suggestedPath = homePath + "/conky-confs/conky-wayland";
+        suggestedPath = homePath + "/" + QString::fromStdString(cfg.get_active_config_subdir());
         displayServerCombo_->setCurrentIndex(0);  // Auto-detect
     }
     
@@ -150,8 +151,8 @@ void FirstRunSetup::loadDefaults() {
     QStringList possibleConfigPaths = {
         homePath + "/.config/conky",
         suggestedPath,
-        homePath + "/conky-confs/conky-wayland",
-        homePath + "/conky-confs/conky-x11",
+        homePath + "/" + QString::fromStdString(cfg.get_active_config_subdir()),
+        homePath + "/conky-confs/" + QString::fromStdString(cfg.get_active_config_subdir()),
         configPath + "/conky",
         homePath + "/conky",
         homePath + "/.conky"

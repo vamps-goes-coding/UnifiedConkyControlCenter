@@ -244,6 +244,45 @@ void PreferencesDialog::setupUI() {
     serverGroupLayout->addStretch();
     
     displayLayout->addWidget(serverGroup);
+
+    // --- Per-server overrides ---
+    auto* overridesGroup = new QGroupBox("Per-Display-Server Paths & Naming");
+    auto* overridesLayout = new QFormLayout(overridesGroup);
+
+    serverKeyCombo = new QComboBox();
+    serverKeyCombo->addItem("X11", "x11");
+    serverKeyCombo->addItem("Wayland", "wayland");
+    overridesLayout->addRow("Editing server:", serverKeyCombo);
+
+    configSubdirEdit = new QLineEdit();
+    overridesLayout->addRow("Config subdir:", configSubdirEdit);
+
+    themesSubdirEdit = new QLineEdit();
+    overridesLayout->addRow("Themes subdir:", themesSubdirEdit);
+
+    configPrefixEdit2 = new QLineEdit();
+    overridesLayout->addRow("Config prefix:", configPrefixEdit2);
+
+    configExtensionEdit2 = new QLineEdit();
+    overridesLayout->addRow("Config extension:", configExtensionEdit2);
+
+    displayLayout->addWidget(overridesGroup);
+
+    // --- Live resolved paths ---
+    auto* resolvedGroup = new QGroupBox("Resolved Paths (read-only, updates live)");
+    auto* resolvedLayout = new QFormLayout(resolvedGroup);
+
+    resolvedConkyPathEdit = new QLineEdit();
+    resolvedConkyPathEdit->setReadOnly(true);
+    resolvedConkyPathEdit->setStyleSheet("color: #333; font-family: monospace; font-size: 11px;");
+    resolvedLayout->addRow("Conky dir:", resolvedConkyPathEdit);
+
+    resolvedThemesPathEdit = new QLineEdit();
+    resolvedThemesPathEdit->setReadOnly(true);
+    resolvedThemesPathEdit->setStyleSheet("color: #333; font-family: monospace; font-size: 11px;");
+    resolvedLayout->addRow("Themes dir:", resolvedThemesPathEdit);
+
+    displayLayout->addWidget(resolvedGroup);
     displayLayout->addStretch();
 
     // --- Theme Settings Tab ---
@@ -320,11 +359,22 @@ void PreferencesDialog::setupUI() {
 
     mainLayout->addWidget(tabs);
 
+    // --- Connections ---
+    connect(displayServerCombo, &QComboBox::currentIndexChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(serverKeyCombo, &QComboBox::currentIndexChanged, this, &PreferencesDialog::loadServerOverrides);
+    connect(configSubdirEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(themesSubdirEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(configPrefixEdit2, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(configExtensionEdit2, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
+
     // Bottom Buttons
     auto* bottomButtons = new QHBoxLayout();
+    auto* mainBtn = new QPushButton("Main Window");
+    mainBtn->setStyleSheet("background-color: #2d333b; color: #f0f6fc; padding: 8px;");
     auto* saveBtn = new QPushButton("Save & Apply");
     saveBtn->setStyleSheet("background-color: #1a7f37; color: white; font-weight: bold; padding: 8px;");
     auto* cancelBtn = new QPushButton("Cancel");
+    bottomButtons->addWidget(mainBtn);
     bottomButtons->addStretch();
     bottomButtons->addWidget(cancelBtn);
     bottomButtons->addWidget(saveBtn);
@@ -332,14 +382,18 @@ void PreferencesDialog::setupUI() {
 
     connect(saveBtn, &QPushButton::clicked, this, &PreferencesDialog::saveAndAccept);
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    connect(mainBtn, &QPushButton::clicked, [this]() {
+        UIManager::show_main_window();
+        reject();  // close the preferences dialog, not the app
+    });
 }
 
 void PreferencesDialog::loadCurrentConfig() {
     auto& config = ConfigManager::instance();
     
     // Paths
-    conkyPathEdit->setText(QString::fromStdString(config.get_conky_wayland_directory().string()));
-    themesPathEdit->setText(QString::fromStdString(config.get_themes_directory().string()));
+    conkyPathEdit->setText( QString::fromStdString(config.get_conky_wayland_directory().string()));
+    themesPathEdit->setText( QString::fromStdString(config.get_themes_directory().string()));
     
 
 
@@ -369,8 +423,8 @@ void PreferencesDialog::loadCurrentConfig() {
     }
     
     // Panel Discovery
-    configPrefixEdit->setText(QString::fromStdString(config.get_panel_discovery_config().config_prefix));
-    configExtensionEdit->setText(QString::fromStdString(config.get_panel_discovery_config().config_extension));
+    configPrefixEdit->setText( QString::fromStdString(config.get_panel_discovery_config().config_prefix));
+    configExtensionEdit->setText( QString::fromStdString(config.get_panel_discovery_config().config_extension));
     
     QString excludedFiles;
     for (const auto& file : config.get_panel_discovery_config().excluded_files) {
@@ -393,9 +447,50 @@ void PreferencesDialog::loadCurrentConfig() {
         displayServerCombo->setCurrentIndex(serverIndex);
     }
     
-    // Theme Settings
-    themeExtensionEdit->setText(QString::fromStdString(config.get_theme_extension()));
-    currentThemeFileEdit->setText(QString::fromStdString(config.get_current_theme_file()));
+// Theme Settings
+    themeExtensionEdit->setText( QString::fromStdString(config.get_theme_extension()));
+    currentThemeFileEdit->setText( QString::fromStdString(config.get_current_theme_file()));
+
+    // Per-server overrides: load X11 by default
+    serverKeyCombo->setCurrentIndex(0);
+    loadServerOverrides();
+    updateResolvedPaths();
+}
+
+void PreferencesDialog::loadServerOverrides() {
+    auto& config = ConfigManager::instance();
+    QString key = serverKeyCombo->currentData().toString();
+    DisplayServerConfig dsc = config.get_display_server_config(key.toStdString());
+
+    configSubdirEdit->blockSignals(true);
+    themesSubdirEdit->blockSignals(true);
+    configPrefixEdit2->blockSignals(true);
+    configExtensionEdit2->blockSignals(true);
+
+    configSubdirEdit->setText( QString::fromStdString(dsc.config_subdir));
+    themesSubdirEdit->setText( QString::fromStdString(dsc.themes_subdir));
+    configPrefixEdit2->setText( QString::fromStdString(dsc.config_prefix));
+    configExtensionEdit2->setText( QString::fromStdString(dsc.config_extension));
+
+    configSubdirEdit->blockSignals(false);
+    themesSubdirEdit->blockSignals(false);
+    configPrefixEdit2->blockSignals(false);
+    configExtensionEdit2->blockSignals(false);
+}
+
+void PreferencesDialog::updateResolvedPaths() {
+    auto& config = ConfigManager::instance();
+
+    // Apply overrides to the in-memory config for live preview only
+    QString key = serverKeyCombo->currentData().toString();
+    DisplayServerConfig& dsc = config.get_display_server_config(key.toStdString());
+    dsc.config_subdir = configSubdirEdit->text().toStdString();
+    dsc.themes_subdir = themesSubdirEdit->text().toStdString();
+    dsc.config_prefix = configPrefixEdit2->text().toStdString();
+    dsc.config_extension = configExtensionEdit2->text().toStdString();
+
+    resolvedConkyPathEdit->setText( QString::fromStdString(config.get_conky_wayland_directory().string()));
+    resolvedThemesPathEdit->setText( QString::fromStdString(config.get_themes_directory().string()));
 }
 
 void PreferencesDialog::saveAndAccept() {

@@ -10,7 +10,22 @@
     "conky_wayland_dir_env": "CONKY_WAYLAND_DIR",
     "conky_themes_dir_env": "CONKY_THEMES_DIR",
     "default_conky_subpath": "conky-confs/conky-wayland",
-    "default_themes_subpath": "themes"
+    "default_themes_subpath": "themes",
+    "display_server": "auto",
+    "display_servers": {
+      "x11": {
+        "config_subdir": "conky-x11",
+        "themes_subdir": "themes",
+        "config_prefix": "conky-x11-",
+        "config_extension": ".conf"
+      },
+      "wayland": {
+        "config_subdir": "conky-wayland",
+        "themes_subdir": "themes",
+        "config_prefix": "conky-wayland-",
+        "config_extension": ".conf"
+      }
+    }
   },
   "panel_discovery": {
     "config_prefix": "conky-wayland-",

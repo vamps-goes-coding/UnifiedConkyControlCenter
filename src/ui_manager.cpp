@@ -80,6 +80,46 @@ protected:
 QApplication* UIManager::app_instance = nullptr;
 QWidget* UIManager::main_window_instance = nullptr;
 QSystemTrayIcon* UIManager::tray_icon_instance = nullptr;
+std::string UIManager::current_mode_ = "panel";
+
+// Mode-switching registry. Populated by create_main_window() so that
+// switch_mode() can be called from anywhere (tray menu, preferences, CLI).
+namespace {
+    QPushButton* g_mode_panel_button = nullptr;
+    QPushButton* g_mode_theme_button = nullptr;
+    QTabWidget* g_mode_tab_widget = nullptr;
+    QAction* g_tray_switch_action = nullptr;
+}
+
+void UIManager::switch_mode(const std::string& mode) {
+    bool to_panel = (mode == "panel");
+    current_mode_ = to_panel ? "panel" : "theme";
+
+    if (g_mode_panel_button) g_mode_panel_button->setChecked(to_panel);
+    if (g_mode_theme_button) g_mode_theme_button->setChecked(!to_panel);
+    if (g_tray_switch_action) {
+        g_tray_switch_action->setText(to_panel
+            ? "Switch to Theme Control"
+            : "Switch to Panel Control");
+    }
+    if (!g_mode_tab_widget) return;
+
+    g_mode_tab_widget->clear();
+    if (to_panel) {
+        g_mode_tab_widget->addTab(create_theme_tab(g_mode_tab_widget), "Themes");
+        g_mode_tab_widget->addTab(create_gap_tab(g_mode_tab_widget), "Gaps");
+        g_mode_tab_widget->addTab(create_start_stop_tab(g_mode_tab_widget), "Start/Stop");
+        g_mode_tab_widget->addTab(create_editor_tab(g_mode_tab_widget), "Editors");
+    } else {
+        g_mode_tab_widget->addTab(create_theme_creator_tab(g_mode_tab_widget), "Creator");
+        g_mode_tab_widget->addTab(create_theme_editor_tab(g_mode_tab_widget), "Theme Editor");
+        g_mode_tab_widget->addTab(create_theme_manager_tab(g_mode_tab_widget), "Theme Manager");
+    }
+}
+
+std::string UIManager::current_mode() {
+    return current_mode_;
+}
 
 // Application lifecycle
 int UIManager::initialize_application(int argc, char* argv[]) {
@@ -312,31 +352,26 @@ QWidget* UIManager::create_main_window() {
     tab_widget->setObjectName("mainTabs");
     main_layout->addWidget(tab_widget);
 
+    // Register the mode controls so switch_mode() can be invoked from
+    // anywhere (tray menu, preferences dialog, CLI).
+    g_mode_panel_button = btn_panel_control;
+    g_mode_theme_button = btn_theme_control;
+    g_mode_tab_widget = tab_widget;
+
     // Define switching logic
     auto switch_to_panel_control = [=]() {
-        btn_panel_control->setChecked(true);
-        btn_theme_control->setChecked(false);
-        tab_widget->clear();
-        tab_widget->addTab(create_theme_tab(tab_widget), "Themes");
-        tab_widget->addTab(create_gap_tab(tab_widget), "Gaps");
-        tab_widget->addTab(create_start_stop_tab(tab_widget), "Start/Stop");
-        tab_widget->addTab(create_editor_tab(tab_widget), "Editors");
+        UIManager::switch_mode("panel");
     };
 
     auto switch_to_theme_control = [=]() {
-        btn_panel_control->setChecked(false);
-        btn_theme_control->setChecked(true);
-        tab_widget->clear();
-        tab_widget->addTab(create_theme_creator_tab(tab_widget), "Creator");
-        tab_widget->addTab(create_theme_editor_tab(tab_widget), "Theme Editor");
-        tab_widget->addTab(create_theme_manager_tab(tab_widget), "Theme Manager");
+        UIManager::switch_mode("theme");
     };
 
     QObject::connect(btn_panel_control, &QPushButton::clicked, switch_to_panel_control);
     QObject::connect(btn_theme_control, &QPushButton::clicked, switch_to_theme_control);
 
     // Start in Panel Control mode
-    switch_to_panel_control();
+    UIManager::switch_mode("panel");
     
     // Create status bar at the bottom
     QFrame* status_bar = new QFrame();
@@ -2130,6 +2165,15 @@ void UIManager::setup_system_tray() {
     });
     
     tray_menu->addSeparator();
+
+    QAction* switch_mode_action = tray_menu->addAction("Switch to Theme Control");
+    g_tray_switch_action = switch_mode_action;
+    tray_menu->addSeparator();
+    QObject::connect(switch_mode_action, &QAction::triggered, []() {
+        std::string next = (UIManager::current_mode() == "panel") ? "theme" : "panel";
+        UIManager::switch_mode(next);
+        show_main_window();
+    });
 
     QAction* preferences_action = tray_menu->addAction("Preferences...");
     QObject::connect(preferences_action, &QAction::triggered, []() {

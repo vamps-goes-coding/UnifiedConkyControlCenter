@@ -33,12 +33,28 @@ struct UIConfig {
     std::vector<std::string> default_panels_to_start;
 };
 
+struct DisplayServerConfig {
+    // Subdirectory name under the conky root for this server's panel .conf files
+    std::string config_subdir = "conky-wayland";
+    // Subdirectory name under the conky root for this server's theme .lua files
+    std::string themes_subdir = "themes";
+    // File prefix used to name per-panel config files (e.g. "conky-wayland-")
+    std::string config_prefix = "conky-wayland-";
+    // File extension for panel config files (e.g. ".conf")
+    std::string config_extension = ".conf";
+};
+
 struct PathsConfig {
     std::string conky_wayland_dir_env = "CONKY_WAYLAND_DIR";
     std::string conky_themes_dir_env = "CONKY_THEMES_DIR";
+    // Default fallback path under $HOME when no env/override is set
     std::string default_conky_subpath = "conky-confs/conky-wayland";
     std::string default_themes_subpath = "themes";
-    std::string display_server = "auto";  // "x11", "wayland", or "auto"
+    // "x11", "wayland", or "auto"
+    std::string display_server = "auto";
+    // Per-display-server overrides. Keys are "x11" and "wayland".
+    // When a server is missing from this map, DisplayServerConfig defaults are used.
+    std::map<std::string, DisplayServerConfig> display_servers;
 };
 
 struct PanelDiscoveryConfig {
@@ -116,7 +132,27 @@ public:
     // Display server configuration
     std::string get_display_server() const { return paths_config_.display_server; }
     void set_display_server(const std::string& display_server) { paths_config_.display_server = display_server; }
-    
+
+    // Resolve the display-server key ("x11" or "wayland") honoring the
+    // "auto" setting by querying the live display server.
+    std::string get_active_display_server_key() const;
+
+    // Get the DisplayServerConfig for the active display server. Falls back to
+    // defaults when the server has no explicit entry in the config map.
+    const DisplayServerConfig& get_active_display_server_config() const;
+
+    // Convenience accessors that resolve against the active server.
+    std::string get_active_config_subdir() const;
+    std::string get_active_themes_subdir() const;
+    std::string get_active_config_prefix() const;
+    std::string get_active_config_extension() const;
+
+    // Get all known display server keys (for UI population).
+    std::vector<std::string> get_display_server_keys() const;
+
+    // Get or create the DisplayServerConfig entry for a given server key.
+    DisplayServerConfig& get_display_server_config(const std::string& key);
+
     // Setters for first-run setup
     void set_conky_config_path(const std::string& path);
     void set_themes_path(const std::string& path);

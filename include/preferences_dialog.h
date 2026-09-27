@@ -23,6 +23,8 @@ public:
 private slots:
     void saveAndAccept();
     void loadCurrentConfig();
+    void loadServerOverrides();
+    void updateResolvedPaths();
 
 private:
     void setupUI();
@@ -53,6 +55,17 @@ private:
 
     // Display Server settings
     QComboBox* displayServerCombo;
+    QComboBox* serverKeyCombo;
+
+    // Per-display-server overrides
+    QLineEdit* configSubdirEdit;
+    QLineEdit* themesSubdirEdit;
+    QLineEdit* configPrefixEdit2;
+    QLineEdit* configExtensionEdit2;
+
+    // Live resolved paths
+    QLineEdit* resolvedConkyPathEdit;
+    QLineEdit* resolvedThemesPathEdit;
 
     // Theme settings
     QLineEdit* themeExtensionEdit;

@@ -58,7 +58,7 @@ std::string Utils::get_display_name(const std::string& panel_id) {
 std::vector<std::string> Utils::discover_panels() {
     std::vector<std::string> panels;
     const auto& config = ConfigManager::instance();
-    std::string kPrefix = config.get_config_prefix();
+    std::string kPrefix = config.get_active_config_prefix();
     std::vector<std::string> excluded_files = config.get_excluded_files();
 
     const fs::path root = conky_wayland_directory();
@@ -67,7 +67,7 @@ std::vector<std::string> Utils::discover_panels() {
     }
 
     for (const auto& entry : fs::directory_iterator(root)) {
-        if (!entry.is_regular_file() || entry.path().extension() != config.get_config_extension()) {
+        if (!entry.is_regular_file() || entry.path().extension() != config.get_active_config_extension()) {
             continue;
         }
         std::string stem = entry.path().stem().string();
@@ -98,11 +98,11 @@ std::vector<std::string> Utils::discover_panels() {
 fs::path Utils::get_conky_config_path(const std::string& panel_name) {
     const auto& config = ConfigManager::instance();
     const fs::path root = conky_wayland_directory();
-    fs::path direct = root / (panel_name + config.get_config_extension());
+    fs::path direct = root / (panel_name + config.get_active_config_extension());
     if (fs::exists(direct)) {
         return direct;
     }
-    return root / (config.get_config_prefix() + panel_name + config.get_config_extension());
+    return root / (config.get_active_config_prefix() + panel_name + config.get_active_config_extension());
 }
 
 bool Utils::file_exists(const fs::path& path) {

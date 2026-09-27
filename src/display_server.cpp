@@ -51,23 +51,9 @@ bool DisplayServer::is_wayland() {
 
 fs::path DisplayServer::get_conky_config_directory() {
     auto& config = ConfigManager::instance();
-    fs::path base_dir = config.get_conky_wayland_directory();
-    
-    // Check for display server specific subdirectories
-    if (is_wayland()) {
-        fs::path wayland_dir = base_dir / "conky-wayland";
-        if (fs::exists(wayland_dir)) {
-            return wayland_dir;
-        }
-    } else if (is_x11()) {
-        fs::path x11_dir = base_dir / "conky-x11";
-        if (fs::exists(x11_dir)) {
-            return x11_dir;
-        }
-    }
-    
-    // Fall back to base directory
-    return base_dir;
+    // ConfigManager::get_conky_wayland_directory() already resolves to the
+    // active display server's subdirectory, so just return it as-is.
+    return config.get_conky_wayland_directory();
 }
 
 std::string DisplayServer::get_config_prefix() {

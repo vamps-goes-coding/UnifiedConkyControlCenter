@@ -58,6 +58,11 @@ public:
     static void setup_main_window(QWidget* window);
     static void show_main_window();
     static void hide_main_window();
+
+    // Mode switching between Panel Control and Theme Control.
+    // Registered by create_main_window(); callable from anywhere (tray, prefs, CLI).
+    static void switch_mode(const std::string& mode);
+    static std::string current_mode();
     
     // Application styling
     static void apply_app_theme(const std::string& theme_name);
@@ -144,6 +149,7 @@ private:
     static QApplication* app_instance;
     static QWidget* main_window_instance;
     static QSystemTrayIcon* tray_icon_instance;
+    static std::string current_mode_;
     
     static void initialize_qt_application(int argc, char* argv[]);
     static QWidget* create_control_center_ui();
