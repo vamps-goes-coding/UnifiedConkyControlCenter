@@ -1,7 +1,7 @@
 # Unified Conky Control Center (UCCC)
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Version](https://img.shields.io/badge/version-1.1.12-green.svg)](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases)
+[![Version](https://img.shields.io/badge/version-1.1.13-green.svg)](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases)
 
 Works on **any Linux distro** - Works on **X11 + Wayland** - Works on **every desktop environment**
 

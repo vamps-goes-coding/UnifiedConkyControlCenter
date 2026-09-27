@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21) # Higher version for better Qt6 & FetchContent support 
-project(UnifiedConkyControlCenter VERSION 1.1.12 LANGUAGES CXX)
+project(UnifiedConkyControlCenter VERSION 1.1.13 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and modern Qt 6.8 features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -118,6 +118,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE APP_VERSION_STR="${APP_VERSIO
 
 # 6. Installation Logic [cite: 6]
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES config/app_config.json DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/config)
+install(FILES resources/conky-control-center.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/IR})
 install(FILES config/app_config.json DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/config)
 install(FILES resources/conky-control-center.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps RENAME UnifiedConkyControlCenter.png)
