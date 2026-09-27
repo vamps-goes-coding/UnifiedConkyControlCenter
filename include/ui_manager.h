@@ -66,6 +66,13 @@ public:
 
     // Refresh the toolbar display-server button text to match the active server.
     static void refresh_display_server_button();
+
+    // Switch the active display server AND migrate the running panel set:
+    // panels running under the previous server are stopped and the same
+    // panel IDs are started under the new server's folder. Panels with no
+    // counterpart in the new folder are left stopped and reported.
+    // Safe to call with the already-active server (just refreshes the UI).
+    static void switch_display_server(const std::string& server);
     
     // Application styling
     static void apply_app_theme(const std::string& theme_name);

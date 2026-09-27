@@ -13,9 +13,13 @@ enum class DisplayServerType {
 
 class DisplayServer {
 public:
-    // Get the current display server type
+    // Get the current display server type (cached; call refresh() to re-detect)
     static DisplayServerType get_type();
-    
+
+    // Clear the cached detection so the next get_type() call re-detects
+    // from the live environment. Call this when the session may have
+    // changed (e.g. after the user switches the display-server override).
+    static void refresh();
     // Get display server name as string
     static std::string get_type_string();
     
@@ -24,16 +28,7 @@ public:
     
     // Check if running on Wayland
     static bool is_wayland();
-    
-    // Get appropriate Conky config directory based on display server
-    static fs::path get_conky_config_directory();
-    
-    // Get appropriate Conky config prefix based on display server
-    static std::string get_config_prefix();
-    
-    // Get appropriate Conky config extension based on display server
-    static std::string get_config_extension();
-    
+
     // Get display server specific environment variables
     static std::string get_display_variable();
     
@@ -46,10 +41,15 @@ public:
 private:
     // Detect display server from environment variables
     static DisplayServerType detect_from_environment();
-    
+
     // Detect display server from running processes
     static DisplayServerType detect_from_processes();
-    
+
+    // Validate that the socket behind an env var actually exists
+    // (guards against stale XWayland-provided variables)
+    static bool wayland_socket_exists(const std::string& name);
+    static bool x11_socket_exists(const std::string& display);
+
     // Check if process is running
     static bool is_process_running(const std::string& process_name);
 };

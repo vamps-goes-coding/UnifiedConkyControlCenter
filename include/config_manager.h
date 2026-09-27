@@ -42,14 +42,46 @@ struct DisplayServerConfig {
     std::string config_prefix = "conky-wayland-";
     // File extension for panel config files (e.g. ".conf")
     std::string config_extension = ".conf";
+    // Conky binary used to launch this server's panels. Distros may ship
+    // separate X11 and Wayland builds (e.g. "conky" vs "conky-wayland").
+    std::string conky_binary = "conky";
+    // Extra argv placed before "-c <config>" when launching a panel.
+    // Defaults preserve the historical flags: quiet + explicit own-window.
+    std::vector<std::string> conky_extra_args = {"-q", "-o"};
+
+    // Replace empty fields with the compiled defaults. Guards against
+    // preferences files saved with blank rows — an empty prefix/extension
+    // would otherwise make panel discovery match nothing and hide every
+    // panel in the Start/Stop list. Defaults are per-server because the
+    // struct's inline values are Wayland-flavored.
+    void normalize(const std::string& server_key = "wayland") {
+        DisplayServerConfig defaults;
+        if (server_key == "x11") {
+            defaults.config_subdir = "conky-x11";
+            defaults.config_prefix = "conky-x11-";
+        }
+        if (config_subdir.empty()) config_subdir = defaults.config_subdir;
+        if (themes_subdir.empty()) themes_subdir = defaults.themes_subdir;
+        if (config_prefix.empty()) config_prefix = defaults.config_prefix;
+        if (config_extension.empty()) config_extension = defaults.config_extension;
+        if (conky_binary.empty()) conky_binary = defaults.conky_binary;
+        if (conky_extra_args.empty()) conky_extra_args = defaults.conky_extra_args;
+    }
 };
 
 struct PathsConfig {
     std::string conky_wayland_dir_env = "CONKY_WAYLAND_DIR";
     std::string conky_themes_dir_env = "CONKY_THEMES_DIR";
-    // Default fallback path under $HOME when no env/override is set
-    std::string default_conky_subpath = "conky-confs/conky-wayland";
+    // Default fallback path under $HOME when no env/override is set.
+    // This is the conky ROOT (server-specific subdirs are appended from
+    // the active DisplayServerConfig), e.g. "~/conky-confs" + "conky-x11".
+    std::string default_conky_subpath = "conky-confs";
     std::string default_themes_subpath = "themes";
+    // Explicit conky root persisted from Preferences / first-run setup.
+    // Empty = unused (fall back to $HOME + default_conky_subpath).
+    // Stored as the ROOT (never a server subdir) so display-server
+    // switching keeps resolving per-server folders underneath it.
+    std::string conky_root_override;
     // "x11", "wayland", or "auto"
     std::string display_server = "auto";
     // Per-display-server overrides. Keys are "x11" and "wayland".
@@ -131,7 +163,7 @@ public:
     
     // Display server configuration
     std::string get_display_server() const { return paths_config_.display_server; }
-    void set_display_server(const std::string& display_server) { paths_config_.display_server = display_server; }
+    void set_display_server(const std::string& display_server);
 
     // Resolve the display-server key ("x11" or "wayland") honoring the
     // "auto" setting by querying the live display server.
@@ -146,6 +178,8 @@ public:
     std::string get_active_themes_subdir() const;
     std::string get_active_config_prefix() const;
     std::string get_active_config_extension() const;
+    std::string get_active_conky_binary() const;
+    std::vector<std::string> get_active_conky_extra_args() const;
 
     // Get all known display server keys (for UI population).
     std::vector<std::string> get_display_server_keys() const;
@@ -157,6 +191,12 @@ public:
     void set_conky_config_path(const std::string& path);
     void set_themes_path(const std::string& path);
     bool save_config();
+
+    // Persist ONLY the display-server selection to disk (surgical update of
+    // paths.display_server), so a toolbar/menu switch survives restarts
+    // without rewriting unrelated in-memory state. Returns false when no
+    // config file location is available.
+    bool save_display_server_selection();
     
 private:
     ConfigManager() = default;
