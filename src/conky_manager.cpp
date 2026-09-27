@@ -197,9 +197,13 @@ void ConkyManager::kill_all_conky() {
 
 // Modern C++ improvements: better error handling and validation
 bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
-    // NOTE: This function MUST be called from the main Qt thread.
-    // QProcess objects are Qt objects and are not safe to create or use
-    // from background threads.
+    // NOTE: Historically this created a tracked QProcess child. That tied
+    // the panel's lifetime to UCCC: closing the app killed its panels
+    // (SIGHUP on the process group + ~QProcess teardown of live handles).
+    // Panels are now launched DETACHED (double-forked, reparented to init)
+    // so they always outlive the control center. State tracking continues
+    // through active_panels.json plus pgrep-by-config-path scans, and
+    // stop/kill still work via pkill on the config filename.
     std::lock_guard<std::recursive_mutex> lock(g_conky_mutex);
 
     fs::path config_path = Utils::get_conky_config_path(panel_name);
@@ -218,48 +222,41 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
         }
     }
 
-    // Clean up any dead process handles first
+    // Clean up any dead process handles first (legacy tracked children)
     reap_zombies();
 
-    // Create and start the new Conky process.
-    // We do NOT daemonize (background = false in config) so that Qt can
-    // track the child process lifetime via its process ID.
-    // Binary and leading flags come from the active display server's
-    // config (DisplayServerConfig::conky_binary / conky_extra_args), so
-    // systems with separate X11 and Wayland conky builds launch correctly.
-    // Defaults preserve the historical flags: quiet + explicit own-window
-    // (at the config level this is controlled by own_window = true).
-    auto p = std::make_unique<QProcess>();
+    // Build argv from the active display server's config (binary + leading
+    // flags), then launch detached. QProcess::startDetached is fire-and-
+    // forget, so verify via pgrep below before reporting success.
     const auto& cfg = ConfigManager::instance();
-    p->setProgram(QString::fromStdString(cfg.get_active_conky_binary()));
-    QStringList args;
-    for (const auto& a : cfg.get_active_conky_extra_args()) {
-        args << QString::fromStdString(a);
-    }
     QString q_config_path = QString::fromStdString(config_path.string());
     if (q_config_path.isEmpty()) {
         throw std::runtime_error("Invalid configuration path for panel: " + panel_name);
     }
+    QStringList args;
+    for (const auto& a : cfg.get_active_conky_extra_args()) {
+        args << QString::fromStdString(a);
+    }
     args << "-c" << q_config_path;
-    p->setArguments(args);
-    p->start();
 
-    if (p->waitForStarted(3000)) {
-        _processes.push_back(p.release());
-        update_pid(panel_name, static_cast<int>(_processes.back()->processId()));
-        return true;
+    qint64 pid = 0;
+    if (!QProcess::startDetached(QString::fromStdString(cfg.get_active_conky_binary()),
+                                 args, QString(), &pid)) {
+        throw std::runtime_error("Failed to start Conky panel: " + panel_name);
     }
 
-    // waitForStarted timed out but process may still have launched
-    {
+    // Poll pgrep briefly: the process needs a moment to exec and show up
+    // with its -c argument. Matches the kill/stop patterns used elsewhere.
+    const std::string needle = "conky.*" + config_path.filename().string();
+    for (int attempt = 0; attempt < 6; ++attempt) {
         QProcess pgrep_proc;
-        pgrep_proc.start("pgrep", QStringList() << "-f" << QString::fromStdString("conky -c.*" + q_config_path.toStdString()));
-        pgrep_proc.waitForFinished(3000);
+        pgrep_proc.start("pgrep", QStringList() << "-f" << QString::fromStdString(needle));
+        pgrep_proc.waitForFinished(1000);
         if (pgrep_proc.exitCode() == 0) {
-            _processes.push_back(p.release());
-            update_pid(panel_name, 0);
+            update_pid(panel_name, static_cast<int>(pid));
             return true;
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     throw std::runtime_error("Failed to start Conky panel: " + panel_name);
