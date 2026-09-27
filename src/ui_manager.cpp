@@ -40,6 +40,8 @@ namespace fs = std::filesystem;
 #include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QToolBar>
+#include <QObject>
 #include <QDateTime>
 #include <QGroupBox>
 #include <QGridLayout>
@@ -89,6 +91,7 @@ namespace {
     QPushButton* g_mode_theme_button = nullptr;
     QTabWidget* g_mode_tab_widget = nullptr;
     QAction* g_tray_switch_action = nullptr;
+    QPushButton* g_display_server_button = nullptr;
 }
 
 void UIManager::switch_mode(const std::string& mode) {
@@ -115,6 +118,14 @@ void UIManager::switch_mode(const std::string& mode) {
         g_mode_tab_widget->addTab(create_theme_editor_tab(g_mode_tab_widget), "Theme Editor");
         g_mode_tab_widget->addTab(create_theme_manager_tab(g_mode_tab_widget), "Theme Manager");
     }
+
+    refresh_display_server_button();
+}
+
+void UIManager::refresh_display_server_button() {
+    if (!g_display_server_button) return;
+    std::string server = ConfigManager::instance().get_active_display_server_key();
+    g_display_server_button->setText( QString::fromUtf8("🖥️  " + server) );
 }
 
 std::string UIManager::current_mode() {
@@ -293,6 +304,64 @@ QWidget* UIManager::create_main_window() {
     file_menu->addSeparator();
     file_menu->addAction("&Quit", window, &QMainWindow::close);
     
+    // ── Display Server toolbar ─────────────────────────────────────────
+    // Quick, fluid switcher. The button text always reflects the active
+    // display server, so it doubles as a live status readout.
+    QToolBar* ds_toolbar = new QToolBar("Display Server", window);
+    ds_toolbar->setObjectName("displayServerToolbar");
+    ds_toolbar->setMovable(false);
+    ds_toolbar->setFloatable(false);
+    ds_toolbar->setStyleSheet(
+        "QToolBar#displayServerToolbar { "
+        "  background: #1d222a; "
+        "  border-bottom: 1px solid #3a4250; "
+        "  padding: 4px 8px; "
+        "}"
+        "QToolBar#displayServerToolbar QToolButton { "
+        "  background: #2d333b; "
+        "  border: 1px solid #444c56; "
+        "  border-radius: 4px; "
+        "  padding: 4px 10px; "
+        "  color: #f0f6fc; "
+        "  font-weight: bold; "
+        "}"
+        "QToolBar#displayServerToolbar QToolButton:hover { "
+        "  background: #3a4250; "
+        "}"
+        "QToolBar#displayServerToolbar QToolButton:pressed { "
+        "  background: #1a7f37; "
+        "}"
+    );
+    window->addToolBar(Qt::TopToolBarArea, ds_toolbar);
+
+QPushButton* ds_btn = new QPushButton();
+    ds_btn->setObjectName("displayServerSwitchBtn");
+    ds_btn->setCursor(Qt::PointingHandCursor);
+    ds_btn->setToolTip("Switch display server (X11 / Wayland) — click to choose");
+    ds_btn->setFixedSize(160, 30);
+    ds_toolbar->addWidget(ds_btn);
+    g_display_server_button = ds_btn;
+
+    QMenu* ds_menu = new QMenu(window);
+    QAction* ds_x11 = ds_menu->addAction("X11");
+    QObject::connect(ds_x11, &QAction::triggered, []() {
+        ConfigManager::instance().set_display_server("x11");
+        UIManager::refresh_display_server_button();
+    });
+    QAction* ds_wayland = ds_menu->addAction("Wayland");
+    QObject::connect(ds_wayland, &QAction::triggered, []() {
+        ConfigManager::instance().set_display_server("wayland");
+        UIManager::refresh_display_server_button();
+    });
+    QAction* ds_auto = ds_menu->addAction("Auto-detect");
+    QObject::connect(ds_auto, &QAction::triggered, []() {
+        ConfigManager::instance().set_display_server("auto");
+        UIManager::refresh_display_server_button();
+    });
+    ds_btn->setMenu(ds_menu);
+
+    UIManager::refresh_display_server_button();
+
     QMenu* view_menu = menu_bar->addMenu("&View");
     view_menu->addAction("&Refresh All", []() {
         refresh_all_tabs();

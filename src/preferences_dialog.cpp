@@ -246,7 +246,7 @@ void PreferencesDialog::setupUI() {
     displayLayout->addWidget(serverGroup);
 
     // --- Per-server overrides ---
-    auto* overridesGroup = new QGroupBox("Per-Display-Server Paths & Naming");
+    auto* overridesGroup = new QGroupBox("Per-Display-Server Paths and Naming");
     auto* overridesLayout = new QFormLayout(overridesGroup);
 
     serverKeyCombo = new QComboBox();
@@ -254,17 +254,34 @@ void PreferencesDialog::setupUI() {
     serverKeyCombo->addItem("Wayland", "wayland");
     overridesLayout->addRow("Editing server:", serverKeyCombo);
 
+    auto* subdirRow = new QHBoxLayout();
     configSubdirEdit = new QLineEdit();
-    overridesLayout->addRow("Config subdir:", configSubdirEdit);
+    subdirBrowse = new QPushButton("Browse...");
+    subdirRow->addWidget(configSubdirEdit);
+    subdirRow->addWidget(subdirBrowse);
+    overridesLayout->addRow("Config subdir:", subdirRow);
 
+    auto* themesSubdirRow = new QHBoxLayout();
     themesSubdirEdit = new QLineEdit();
-    overridesLayout->addRow("Themes subdir:", themesSubdirEdit);
+    themesSubdirBrowse = new QPushButton("Browse...");
+    themesSubdirRow->addWidget(themesSubdirEdit);
+    themesSubdirRow->addWidget(themesSubdirBrowse);
+    overridesLayout->addRow("Themes subdir:", themesSubdirRow);
 
     configPrefixEdit2 = new QLineEdit();
     overridesLayout->addRow("Config prefix:", configPrefixEdit2);
 
     configExtensionEdit2 = new QLineEdit();
     overridesLayout->addRow("Config extension:", configExtensionEdit2);
+
+    connect(subdirBrowse, &QPushButton::clicked, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Config Subdir", configSubdirEdit->text());
+        if (!dir.isEmpty()) configSubdirEdit->setText(dir);
+    });
+    connect(themesSubdirBrowse, &QPushButton::clicked, [this]() {
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Themes Subdir", themesSubdirEdit->text());
+        if (!dir.isEmpty()) themesSubdirEdit->setText(dir);
+    });
 
     displayLayout->addWidget(overridesGroup);
 
@@ -361,6 +378,12 @@ void PreferencesDialog::setupUI() {
 
     // --- Connections ---
     connect(displayServerCombo, &QComboBox::currentIndexChanged, this, &PreferencesDialog::updateResolvedPaths);
+    connect(displayServerCombo, &QComboBox::currentIndexChanged, [this](int) {
+        // Keep the per-server editor pointed at the active server
+        QString key = QString::fromStdString(ConfigManager::instance().get_active_display_server_key());
+        int idx = serverKeyCombo->findData(key);
+        if (idx >= 0) serverKeyCombo->setCurrentIndex(idx);
+    });
     connect(serverKeyCombo, &QComboBox::currentIndexChanged, this, &PreferencesDialog::loadServerOverrides);
     connect(configSubdirEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
     connect(themesSubdirEdit, &QLineEdit::textChanged, this, &PreferencesDialog::updateResolvedPaths);
@@ -544,12 +567,21 @@ void PreferencesDialog::saveAndAccept() {
     
     // Update Display Server
     config.set_display_server(displayServerCombo->currentData().toString().toStdString());
-    
+
+    // Persist per-display-server overrides for the server currently being edited
+    QString editingKey = serverKeyCombo->currentData().toString();
+    DisplayServerConfig& dsc = config.get_display_server_config(editingKey.toStdString());
+    dsc.config_subdir = configSubdirEdit->text().toStdString();
+    dsc.themes_subdir = themesSubdirEdit->text().toStdString();
+    dsc.config_prefix = configPrefixEdit2->text().toStdString();
+    dsc.config_extension = configExtensionEdit2->text().toStdString();
+
     // Update Theme Settings
     config.get_themes_config().file_extension = themeExtensionEdit->text().toStdString();
     config.get_themes_config().current_theme_file = currentThemeFileEdit->text().toStdString();
     
     if (config.save_config()) {
+        UIManager::refresh_display_server_button();
         accept();
     } else {
         QMessageBox::critical(this, "Error", "Failed to save configuration to app_config.json");

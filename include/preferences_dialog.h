@@ -59,7 +59,9 @@ private:
 
     // Per-display-server overrides
     QLineEdit* configSubdirEdit;
+    QPushButton* subdirBrowse;
     QLineEdit* themesSubdirEdit;
+    QPushButton* themesSubdirBrowse;
     QLineEdit* configPrefixEdit2;
     QLineEdit* configExtensionEdit2;
 

@@ -63,6 +63,9 @@ public:
     // Registered by create_main_window(); callable from anywhere (tray, prefs, CLI).
     static void switch_mode(const std::string& mode);
     static std::string current_mode();
+
+    // Refresh the toolbar display-server button text to match the active server.
+    static void refresh_display_server_button();
     
     // Application styling
     static void apply_app_theme(const std::string& theme_name);
