@@ -60,6 +60,7 @@ namespace fs = std::filesystem;
 #include <QMenuBar>
 #include <QColorDialog>
 #include <QInputDialog>
+#include <QEventLoop>
 #include <QPainter>
 #include <fstream>
 #include <iostream>
@@ -338,6 +339,62 @@ void UIManager::run_application() {
 void UIManager::quit_application() {
     if (app_instance) {
         app_instance->quit();
+    }
+}
+
+// CI smoke test (--smoke-test).
+//
+// Builds the real main window, switches through both modes (which constructs
+// every tab), forces a full refresh, and pumps the event loop long enough for
+// the queued singleShot initial loads to fire. Returns true only if all of that
+// completed and the window is still alive — so CI can assert a real exit code
+// instead of "the process didn't segfault within N seconds".
+bool UIManager::run_smoke_test() {
+    if (!app_instance) {
+        std::cerr << "smoke: QApplication was never initialised" << std::endl;
+        return false;
+    }
+
+    try {
+        ConkyManager::verify_panel_state_on_startup();
+
+        create_main_window();
+        if (!main_window_instance) {
+            std::cerr << "smoke: main window was not created" << std::endl;
+            return false;
+        }
+        show_main_window();
+
+        // Each mode swap calls tab_widget->clear() and rebuilds its tab set,
+        // so walking both directions exercises every tab constructor.
+        switch_mode("theme");
+        switch_mode("panel");
+        refresh_all_tabs();
+
+        // Let the queued initial loads run: panel status grid (100 ms),
+        // theme lists (200 ms), theme editor categories (500 ms) and the
+        // first 5 s Start/Stop auto-refresh tick's immediate refresh.
+        QEventLoop loop;
+        QTimer::singleShot(2000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        if (!main_window_instance || !main_window_instance->isVisible()) {
+            std::cerr << "smoke: main window is not visible after event pump"
+                      << std::endl;
+            return false;
+        }
+
+        std::cout << "smoke: OK - main window, both modes and tab refreshes built successfully"
+                  << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        LOG_ERROR(std::string("Smoke test threw: ") + e.what());
+        std::cerr << "smoke: FAILED - " << e.what() << std::endl;
+        return false;
+    } catch (...) {
+        LOG_ERROR("Smoke test threw an unknown exception");
+        std::cerr << "smoke: FAILED - unknown exception" << std::endl;
+        return false;
     }
 }
 

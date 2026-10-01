@@ -25,6 +25,13 @@ public:
     static bool isFirstRun();
     static void markSetupComplete();
 
+    // Creates the folder layout under the configured Conky folder and, when
+    // that folder holds no panels yet, writes one minimal sample panel plus a
+    // starter theme so a brand-new install has something to control.
+    // Never overwrites an existing file. `messageOut` receives a human
+    // description of what happened (also written to the log).
+    static bool createSampleConfig(const QString& conkyRoot, QString* messageOut = nullptr);
+
 private slots:
     void browseConkyConfig();
     void browseThemes();

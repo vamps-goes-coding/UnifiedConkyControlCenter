@@ -1,5 +1,6 @@
 #include "config_manager.h"
 #include "display_server.h"
+#include "logger.h"
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
@@ -13,7 +14,7 @@ bool ConfigManager::load_config(const fs::path& config_path) {
     fs::path path = config_path.empty() ? find_config_file() : config_path;
     
     if (path.empty() || !fs::exists(path)) {
-        std::cerr << "Config file not found, using defaults" << std::endl;
+        LOG_INFO("Config file not found, using defaults");
         set_defaults();
         return false;
     }
@@ -21,7 +22,7 @@ bool ConfigManager::load_config(const fs::path& config_path) {
     try {
         std::ifstream file(path);
         if (!file.is_open()) {
-            std::cerr << "Failed to open config file: " << path << std::endl;
+            LOG_ERROR("Failed to open config file: " + path.string());
             set_defaults();
             return false;
         }
@@ -44,6 +45,7 @@ bool ConfigManager::load_config(const fs::path& config_path) {
             paths_config_.default_conky_subpath = paths.value("default_conky_subpath", paths_config_.default_conky_subpath);
             paths_config_.default_themes_subpath = paths.value("default_themes_subpath", paths_config_.default_themes_subpath);
             paths_config_.conky_root_override = paths.value("conky_root_override", paths_config_.conky_root_override);
+            paths_config_.themes_root_override = paths.value("themes_root_override", paths_config_.themes_root_override);
             paths_config_.display_server = paths.value("display_server", paths_config_.display_server);
 
             // Parse per-display-server overrides (optional).
@@ -111,9 +113,12 @@ bool ConfigManager::load_config(const fs::path& config_path) {
         
         // Parse hardware config
         if (config.contains("hardware") && config["hardware"].is_object()) {
-            auto& hw = config["hardware"];
-            // Example: "preferred_net": "wlan0"
-            // We assume hardware_prefs_ is a std::map<std::string, std::string>
+            hardware_prefs_.clear();
+            for (const auto& [key, value] : config["hardware"].items()) {
+                if (value.is_string()) {
+                    hardware_prefs_[key] = value.get<std::string>();
+                }
+            }
         }
 
         // Parse app themes
@@ -137,7 +142,7 @@ bool ConfigManager::load_config(const fs::path& config_path) {
         
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Error parsing config file: " << e.what() << std::endl;
+        LOG_ERROR("Error parsing config file: " + std::string(e.what()));
         set_defaults();
         return false;
     }
@@ -197,6 +202,11 @@ fs::path ConfigManager::get_themes_directory() const {
     const char* env_dir = std::getenv(paths_config_.conky_themes_dir_env.c_str());
     if (env_dir && strlen(env_dir) > 0) {
         return fs::path(env_dir);
+    }
+
+    // Then the themes root persisted by First Run Setup / set_themes_path().
+    if (!paths_config_.themes_root_override.empty()) {
+        return fs::path(paths_config_.themes_root_override);
     }
 
     // Fall back to default path
@@ -337,7 +347,17 @@ fs::path ConfigManager::find_config_file() const {
 }
 
 void ConfigManager::set_defaults() {
-    // All defaults are already set in the struct definitions
+    // Reset everything, not just the two list members. load_config() calls
+    // this on a missing/unreadable file, and previously the path, discovery
+    // and hardware members kept whatever the previous load had left behind -
+    // so a "defaults" load was really "defaults plus stale state".
+    app_config_ = ApplicationConfig{};
+    paths_config_ = PathsConfig{};
+    panel_discovery_config_ = PanelDiscoveryConfig{};
+    ui_config_ = UIConfig{};
+    themes_config_ = ThemesConfig{};
+    hardware_prefs_.clear();
+
     app_themes_ = {"Default Light", "Dark Charcoal", "Dracula", "Nord", "Solarized Light", "Oceanic"};
     
     editors_ = {
@@ -379,10 +399,41 @@ void ConfigManager::set_conky_config_path(const std::string& path) {
 }
 
 void ConfigManager::set_themes_path(const std::string& path) {
-    // NOTE: session-only (process environment), like the conky path was
-    // before conky_root_override existed. Use the per-server themes_subdir
-    // overrides for anything that must survive a restart.
-    setenv(paths_config_.conky_themes_dir_env.c_str(), path.c_str(), 1);
+    // Persist the choice. This used to be a session-only setenv(), so a themes
+    // folder picked in First Run Setup was silently forgotten on the next
+    // launch and get_themes_directory() fell back to <conky dir>/themes.
+    //
+    // A value equal to the derived default is stored as "empty" so themes keep
+    // following the Conky folder: moving the Conky folder in Preferences still
+    // moves the themes folder with it.
+    auto strip = [](std::string s) {
+        while (s.size() > 1 && (s.back() == '/' || s.back() == '\\')) s.pop_back();
+        return s;
+    };
+    const fs::path derived = get_conky_wayland_directory() / paths_config_.default_themes_subpath;
+    const bool is_default = strip(fs::path(path).string()) == strip(derived.string());
+
+    paths_config_.themes_root_override = is_default ? std::string() : path;
+
+    if (is_default) {
+        unsetenv(paths_config_.conky_themes_dir_env.c_str());
+    } else {
+        setenv(paths_config_.conky_themes_dir_env.c_str(), path.c_str(), 1);
+    }
+}
+
+std::string ConfigManager::get_hardware_pref(const std::string& key,
+                                             const std::string& default_value) const {
+    auto it = hardware_prefs_.find(key);
+    return it != hardware_prefs_.end() ? it->second : default_value;
+}
+
+void ConfigManager::set_hardware_pref(const std::string& key, const std::string& value) {
+    if (value.empty()) {
+        hardware_prefs_.erase(key);
+    } else {
+        hardware_prefs_[key] = value;
+    }
 }
 
 bool ConfigManager::save_display_server_selection() {
@@ -427,7 +478,7 @@ bool ConfigManager::save_display_server_selection() {
         fs::rename(tmp_path, config_path);
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Error saving display server selection: " << e.what() << std::endl;
+        LOG_ERROR("Error saving display server selection: " + std::string(e.what()));
         return false;
     }
 }
@@ -468,6 +519,7 @@ bool ConfigManager::save_config() {
             {"default_conky_subpath", paths_config_.default_conky_subpath},
             {"default_themes_subpath", paths_config_.default_themes_subpath},
             {"conky_root_override", paths_config_.conky_root_override},
+            {"themes_root_override", paths_config_.themes_root_override},
             {"display_server", paths_config_.display_server}
         };
 
@@ -493,6 +545,15 @@ bool ConfigManager::save_config() {
             {"config_extension", panel_discovery_config_.config_extension},
             {"excluded_files", panel_discovery_config_.excluded_files}
         };
+
+        // Hardware preferences (Preferences > Hardware)
+        if (!hardware_prefs_.empty()) {
+            json hw = json::object();
+            for (const auto& [key, value] : hardware_prefs_) {
+                hw[key] = value;
+            }
+            config["hardware"] = hw;
+        }
         
         // UI config
         config["ui"] = {
@@ -547,7 +608,7 @@ bool ConfigManager::save_config() {
         fs::rename(tmp_path, config_path);
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Error saving config: " << e.what() << std::endl;
+        LOG_ERROR("Error saving config: " + std::string(e.what()));
         return false;
     }
 }

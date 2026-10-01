@@ -8,6 +8,11 @@
 #include "first_run_setup.h"
 #include "logger.h"
 #include "error_handler.h"
+#include "error_dialog.h"
+#include "crash_recovery.h"
+
+#include <QMessageBox>
+#include <QApplication>
 
 #include <iostream>
 #include <limits>
@@ -16,6 +21,11 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <filesystem>
+#include <cstdlib>
+#include <exception>
+
+namespace fs = std::filesystem;
 
 // Simple C++ implementation without Qt dependencies
 class ConkyControlCenter {
@@ -449,12 +459,72 @@ if (themeManager->apply_theme_to_panel(themeName, categoryKey, "all-media")) {
     }
 };
 
+namespace {
+
+// Snapshot the current session so a later unclean exit can be recovered from.
+// CrashRecovery::perform_recovery() expects panel IDs (filename stem minus the
+// active server's prefix), which is what ConkyManager/Utils use everywhere.
+CrashRecoveryData capture_recovery_state(bool clean_exit) {
+    CrashRecoveryData data;
+    try {
+        auto& config = ConfigManager::instance();
+        data.last_config_path = config.get_conky_wayland_directory().string();
+        data.last_theme_path = config.get_themes_directory().string();
+
+        const std::string prefix = config.get_active_config_prefix();
+        for (const auto& cfg : ConkyManager::get_running_configs(false)) {
+            std::string stem = fs::path(cfg).stem().string();
+            if (!prefix.empty() && stem.rfind(prefix, 0) == 0) {
+                stem = stem.substr(prefix.size());
+            }
+            if (!stem.empty()) {
+                data.active_panels.push_back(stem);
+            }
+        }
+    } catch (const std::exception& e) {
+        LOG_WARNING(std::string("Could not capture recovery state: ") + e.what());
+    }
+    data.last_save_time = std::chrono::system_clock::now();
+    data.was_clean_exit = clean_exit;
+    return data;
+}
+
+void report_fatal_error(const char* what) {
+    LOG_ERROR(std::string("Fatal error: ") + what);
+    // Only build a GUI dialog if Qt is actually up - the failure may have
+    // happened before QApplication existed.
+    if (QApplication::instance()) {
+        try {
+            ErrorDialog::show_critical(nullptr, "Unexpected error",
+                                       "Unified Conky Control Center hit an unexpected error.",
+                                       QString::fromUtf8(what),
+                                       /*offer_report=*/true);
+        } catch (...) {
+            // Fall through: logging already happened, a dialog is best-effort.
+        }
+    }
+    Logger::instance().flush();
+}
+
+} // namespace
+
 int main(int argc, char* argv[]) {
     // Initialize logging system first
     auto& logger = Logger::instance();
     if (!logger.initialize()) {
         std::cerr << "Warning: Could not initialize logging system" << std::endl;
     }
+
+    // Qt slots run outside our try/catch and end up in std::terminate(), which
+    // normally aborts with no trace. Log before dying so the log file explains
+    // why the session ended.
+    std::set_terminate([]() {
+        try { LOG_CRITICAL("Terminating: unhandled exception escaped to std::terminate()"); }
+        catch (...) {}
+        try { Logger::instance().flush(); } catch (...) {}
+        std::abort();
+    });
+
     LOG_INFO("Application starting: " + std::string(AppInfo::get_display_name()));
     LOG_INFO("Version: " + std::string(AppInfo::get_version()));
     
@@ -469,10 +539,13 @@ int main(int argc, char* argv[]) {
     
     // Check for CLI flag
     bool useCli = false;
+    bool useSmokeTest = false;
     for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "--cli") {
+        const std::string arg = argv[i];
+        if (arg == "--cli") {
             useCli = true;
-            break;
+        } else if (arg == "--smoke-test") {
+            useSmokeTest = true;
         }
     }
 
@@ -496,34 +569,87 @@ int main(int argc, char* argv[]) {
         // Start GUI
         LOG_INFO("Starting GUI mode");
         UIManager::initialize_application(argc, argv);
-        
-        // Show first-run setup dialog if needed
-        if (FirstRunSetup::isFirstRun() || !configLoaded) {
-            LOG_INFO("First run detected, showing setup dialog");
-            FirstRunSetup setupDialog;
-            if (setupDialog.exec() == QDialog::Accepted) {
-                // Save the paths to config
-                config.set_conky_config_path(setupDialog.getConkyConfigPath().toStdString());
-                config.set_themes_path(setupDialog.getThemesPath().toStdString());
-                
-                // Save display server selection
-                std::string displayServer = setupDialog.getDisplayServer().toStdString();
-                config.set_display_server(displayServer);
-                LOG_INFO("Display server configured: " + displayServer);
-                
-                config.save_config();
-                
-                // Mark setup as complete
-                FirstRunSetup::markSetupComplete();
-                LOG_INFO("First run setup completed");
-            } else {
-                LOG_INFO("First run setup cancelled");
-                return 0; // Exit if setup was required but cancelled
-            }
+
+        // Automated self-check: build the UI and report a real exit code.
+        // Deliberately bypasses the interactive first-run dialog, since there
+        // is nobody to click it.
+        if (useSmokeTest) {
+            LOG_INFO("Starting smoke test");
+            const bool ok = UIManager::run_smoke_test();
+            logger.cleanup_old_logs();
+            return ok ? 0 : 1;
         }
-        
-        UIManager::run_application();
-        LOG_INFO("GUI mode exited normally");
-        return 0;
+
+        int exit_code = 0;
+        try {
+            // An unclean previous exit leaves recovery state marked in-flight;
+            // offer to restore it before anything else touches the config.
+            if (CrashRecovery::initialize() && CrashRecovery::needs_recovery()) {
+                const auto answer = QMessageBox::question(
+                    nullptr,
+                    "Recover previous session?",
+                    "Unified Conky Control Center did not exit cleanly the last time it ran.\n\n"
+                    "Restore the previous Conky folder, themes folder and running panels?",
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+                if (answer == QMessageBox::Yes) {
+                    CrashRecovery::perform_recovery();
+                } else {
+                    CrashRecovery::cleanup_recovery_file();
+                }
+            }
+
+            // Show first-run setup dialog if needed
+            bool setupCancelled = false;
+            if (FirstRunSetup::isFirstRun() || !configLoaded) {
+                LOG_INFO("First run detected, showing setup dialog");
+                FirstRunSetup setupDialog;
+                if (setupDialog.exec() == QDialog::Accepted) {
+                    // Save the paths to config
+                    config.set_conky_config_path(setupDialog.getConkyConfigPath().toStdString());
+                    config.set_themes_path(setupDialog.getThemesPath().toStdString());
+
+                    // Save display server selection
+                    std::string displayServer = setupDialog.getDisplayServer().toStdString();
+                    config.set_display_server(displayServer);
+                    LOG_INFO("Display server configured: " + displayServer);
+
+                    config.save_config();
+
+                    // Seed the chosen folder with a working example when it is
+                    // empty - must come after set_display_server() so the file
+                    // name uses the right conky-x11-/conky-wayland- prefix.
+                    if (setupDialog.shouldCreateSampleConfig()) {
+                        FirstRunSetup::createSampleConfig(setupDialog.getConkyConfigPath());
+                    }
+
+                    // Mark setup as complete
+                    FirstRunSetup::markSetupComplete();
+                    LOG_INFO("First run setup completed");
+                } else {
+                    LOG_INFO("First run setup cancelled");
+                    setupCancelled = true;
+                }
+            }
+
+            if (!setupCancelled) {
+                // Mark this session in-flight; normal exit flips it to clean.
+                CrashRecovery::save_state(capture_recovery_state(false));
+
+                UIManager::run_application();
+                LOG_INFO("GUI mode exited normally");
+                CrashRecovery::mark_clean_exit();
+            }
+        } catch (const std::exception& e) {
+            ErrorHandler::handle_error(e, "main");
+            report_fatal_error(e.what());
+            exit_code = 1;
+        } catch (...) {
+            LOG_ERROR("Fatal error: unknown exception");
+            report_fatal_error("Unknown exception");
+            exit_code = 1;
+        }
+
+        logger.cleanup_old_logs();
+        return exit_code;
     }
 }

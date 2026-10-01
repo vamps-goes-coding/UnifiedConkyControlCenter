@@ -521,9 +521,9 @@ package() {
     install -Dm755 "\$exe_path" "\${pkgdir}/usr/bin/UnifiedConkyControlCenter"
 
     # Install Desktop Entry
-    [ -f "\$src_root/share/applications/conky-control-center.desktop" ] && \
-        install -Dm644 "\$src_root/share/applications/conky-control-center.desktop" \
-            "\${pkgdir}/usr/share/applications/conky-control-center.desktop"
+    [ -f "\$src_root/share/applications/unified-conky-control-center.desktop" ] && \
+        install -Dm644 "\$src_root/share/applications/unified-conky-control-center.desktop" \
+            "\${pkgdir}/usr/share/applications/unified-conky-control-center.desktop"
 
     # Install Resources and Icons
     [ -d "\$src_root/share/${APP_NAME}" ] && \

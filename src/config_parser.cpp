@@ -159,14 +159,24 @@ bool ConfigParser::set_gap_values(const fs::path& config_path, int gap_x, int ga
     // Modern C++ improvements: use std::regex_replace with pre-compiled patterns
     std::string new_gap_x = "gap_x = " + std::to_string(gap_x);
     std::string new_gap_y = "gap_y = " + std::to_string(gap_y);
-    
+
+    // Distinguish a genuine failure (the file has no gap fields at all) from
+    // "the file already holds exactly these values". The old check compared
+    // the whole rewritten text against the original, so re-applying unchanged
+    // values returned false and the Gap editor showed a spurious warning.
+    const bool has_gap_x = std::regex_search(content, RE_GAP_X);
+    const bool has_gap_y = std::regex_search(content, RE_GAP_Y);
+    if (!has_gap_x && !has_gap_y) {
+        std::cerr << "ERROR: Neither gap_x nor gap_y found in: " << config_path << std::endl;
+        return false;
+    }
+
     std::string replaced_x = std::regex_replace(content, RE_GAP_X, new_gap_x);
     std::string replaced_y = std::regex_replace(replaced_x, RE_GAP_Y, new_gap_y);
     
-    // Validate that replacements actually occurred
     if (replaced_y == content) {
-        std::cerr << "ERROR: Neither gap_x nor gap_y found in: " << config_path << std::endl;
-        return false;
+        // Values were already correct - success, just nothing to write.
+        return true;
     }
     
     // Write back to file

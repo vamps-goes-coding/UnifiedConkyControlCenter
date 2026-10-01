@@ -5,10 +5,11 @@ pkgrel=1
 pkgdesc="A unified control center for managing Conky configurations across X11 and Wayland"
 arch=('x86_64')
 url="https://github.com/vamps-goes-coding/UnifiedConkyControlCenter"
-license=('GPL')
+license=('GPL-3.0-or-later')
 depends=('qt6-base' 'qt6-wayland' 'conky')
 makedepends=('cmake' 'gcc' 'qt6-tools')
 source=("https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases/download/v${pkgver}/UnifiedConkyControlCenter-${pkgver}-Linux-x86_64.tar.gz")
+# Filled in by .github/workflows/release.yml when the release is published.
 sha256sums=('SKIP')
 
 prepare() {
@@ -21,9 +22,9 @@ package() {
 
     install -Dm755 "$src/bin/UnifiedConkyControlCenter" "${pkgdir}/usr/bin/UnifiedConkyControlCenter"
 
-    [ -f "$src/share/applications/conky-control-center.desktop" ] && \
-        install -Dm644 "$src/share/applications/conky-control-center.desktop" \
-            "${pkgdir}/usr/share/applications/conky-control-center.desktop"
+    [ -f "$src/share/applications/unified-conky-control-center.desktop" ] && \
+        install -Dm644 "$src/share/applications/unified-conky-control-center.desktop" \
+            "${pkgdir}/usr/share/applications/unified-conky-control-center.desktop"
 
     [ -d "$src/share/UnifiedConkyControlCenter" ] && \
         cp -r "$src/share/UnifiedConkyControlCenter" "${pkgdir}/usr/share/"

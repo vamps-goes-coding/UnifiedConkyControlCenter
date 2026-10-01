@@ -8,6 +8,8 @@
 #include <QSpinBox>
 #include <QComboBox>
 #include <QPlainTextEdit>
+#include <QLabel>
+#include <QPushButton>
 
 /**
  * @brief Dialog for managing application-wide preferences including paths,
@@ -75,7 +77,13 @@ private:
     QLineEdit* themeExtensionEdit;
     QLineEdit* currentThemeFileEdit;
 
-    // General settings
+    // Hardware settings (Preferences > Hardware)
+    QComboBox* gpuCombo;
+    QComboBox* netCombo;
+    QComboBox* audioCombo;
+
+    // General settings (read-only summary, refreshed on load)
+    QLabel* generalInfoLabel;
 };
 
 #endif // PREFERENCES_DIALOG_H

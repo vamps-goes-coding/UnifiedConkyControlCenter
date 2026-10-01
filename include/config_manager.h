@@ -82,6 +82,9 @@ struct PathsConfig {
     // Stored as the ROOT (never a server subdir) so display-server
     // switching keeps resolving per-server folders underneath it.
     std::string conky_root_override;
+    // Explicit themes root persisted from first-run setup. Empty = unused
+    // (fall back to <conky dir>/default_themes_subpath).
+    std::string themes_root_override;
     // "x11", "wayland", or "auto"
     std::string display_server = "auto";
     // Per-display-server overrides. Keys are "x11" and "wayland".
@@ -197,6 +200,12 @@ public:
     // without rewriting unrelated in-memory state. Returns false when no
     // config file location is available.
     bool save_display_server_selection();
+
+    // Hardware preferences chosen in Preferences > Hardware (default GPU,
+    // primary NIC, default sound card) so panel configs can reference them.
+    const std::map<std::string, std::string>& get_hardware_prefs() const { return hardware_prefs_; }
+    std::string get_hardware_pref(const std::string& key, const std::string& default_value = "") const;
+    void set_hardware_pref(const std::string& key, const std::string& value);
     
 private:
     ConfigManager() = default;
@@ -211,6 +220,7 @@ private:
     ThemesConfig themes_config_;
     std::vector<std::string> app_themes_;
     std::vector<EditorInfo> editors_;
+    std::map<std::string, std::string> hardware_prefs_;
     
     // Helper methods
     fs::path find_config_file() const;

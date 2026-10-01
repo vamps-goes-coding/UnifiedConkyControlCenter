@@ -5,21 +5,30 @@ set(CMAKE_CXX_STANDARD 20) # Upgraded to 20 for better std::filesystem and moder
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Automated Versioning Logic ---
-# Attempt to get the version from Git tags
-execute_process(
-    COMMAND git describe --tags --always
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_VERSION
-    ERROR_QUIET
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# Release CI passes -DAPP_VERSION_OVERRIDE=<x.y.z> so package names never depend
+# on the depth or state of the git checkout that happens to be building.
+set(APP_VERSION_OVERRIDE "" CACHE STRING "Explicit x.y.z version; bypasses git describe")
 
-# Clean up the tag (remove leading 'v' if present)
-string(REGEX REPLACE "^v" "" APP_VERSION "${GIT_VERSION}")
+if(APP_VERSION_OVERRIDE)
+    set(APP_VERSION "${APP_VERSION_OVERRIDE}")
+else()
+    # Attempt to get the version from Git tags
+    execute_process(
+        COMMAND git describe --tags --always
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_VERSION
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
 
-# If no tag is found, fallback to project version
-if(NOT APP_VERSION)
-    set(APP_VERSION ${PROJECT_VERSION})
+    # Clean up the tag (remove leading 'v' if present)
+    string(REGEX REPLACE "^v" "" APP_VERSION "${GIT_VERSION}")
+
+    # `--always` falls back to a bare commit SHA when no tag is reachable
+    # (shallow clone, detached source tarball). Treat that as "no version".
+    if(NOT APP_VERSION MATCHES "^[0-9]+\\.[0-9]+")
+        set(APP_VERSION "${PROJECT_VERSION}")
+    endif()
 endif()
 
 message(STATUS "Building version: ${APP_VERSION}")
@@ -116,14 +125,15 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 # Pass project version to the source code so it matches the GitHub release automatically
 target_compile_definitions(${PROJECT_NAME} PRIVATE APP_VERSION_STR="${APP_VERSION}")
 
-# 6. Installation Logic [cite: 6]
+# 6. Installation Logic
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES config/app_config.json DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/config)
-install(FILES resources/conky-control-center.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/IR})
-install(FILES config/app_config.json DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME}/config)
-install(FILES resources/conky-control-center.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/icon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps RENAME UnifiedConkyControlCenter.png)
+install(FILES resources/unified-conky-control-center.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/icon-256.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+        RENAME UnifiedConkyControlCenter.png)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
 
 # 7. CPack Configuration [cite: 6] - Supports DEB, RPM, and TGZ
 set(CPACK_PACKAGE_NAME "UnifiedConkyControlCenter")
@@ -137,14 +147,29 @@ set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/vamps-goes-coding/UnifiedConk
 set(CPACK_PACKAGE_CONTACT "Unified Conky Control Center Team")
 
 # Debian/Ubuntu Package Configuration
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "qt6-base, qt6-wayland, libqt6gui6, conky")
+# Let dpkg-shlibdeps derive the Qt runtime deps from the linked binaries when it
+# is available — hardcoded Qt package names change across releases (e.g. the
+# 24.04 t64 transition), so a static list is always wrong for somebody.
+# `conky` stays manual because it is not a linked library.
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "conky")
+find_program(DPKG_SHLIBDEPS_EXECUTABLE dpkg-shlibdeps)
+if(DPKG_SHLIBDEPS_EXECUTABLE)
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_LIBRARY_DIRS "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+else()
+    message(STATUS "dpkg-shlibdeps not found - DEB will only declare a 'conky' dependency")
+endif()
+set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/vamps-goes-coding/UnifiedConkyControlCenter")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_SECTION "x11")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
 # RPM Package Configuration
-set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtwayland, qt6-qtbase-gui, conky")
+# rpmbuild auto-generates Requires for the linked ELF sonames, so only the
+# non-linked runtime dependency needs to be declared here.
+set(CPACK_RPM_PACKAGE_REQUIRES "conky")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
+set(CPACK_RPM_PACKAGE_URL "https://github.com/vamps-goes-coding/UnifiedConkyControlCenter")
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 
 # TGZ/Archive Configuration
@@ -156,3 +181,28 @@ set(CPACK_GENERATOR "DEB;RPM;TGZ")
 set(CPACK_COMPONENTS_GROUPING IGNORE)
 
 include(CPack)
+
+# 8. Tests
+# Deliberately Qt-free: the core (parsing, config persistence, panel
+# discovery, display-server resolution) is pure C++/POSIX, so the unit tests
+# build in seconds and can run in CI without a display server.
+option(UCCC_BUILD_TESTS "Build the unit tests" ON)
+
+if(UCCC_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(uccc_unit_tests
+        tests/unit_tests.cpp
+        src/config_parser.cpp
+        src/config_manager.cpp
+        src/display_server.cpp
+        src/utils.cpp
+        src/logger.cpp
+    )
+    set_target_properties(uccc_unit_tests PROPERTIES AUTOMOC OFF AUTORCC OFF)
+    target_include_directories(uccc_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_compile_definitions(uccc_unit_tests PRIVATE APP_VERSION_STR="${APP_VERSION}")
+    target_link_libraries(uccc_unit_tests PRIVATE nlohmann_json::nlohmann_json)
+
+    add_test(NAME unit_tests COMMAND uccc_unit_tests)
+endif()

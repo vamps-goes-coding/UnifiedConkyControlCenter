@@ -9,93 +9,167 @@ on:
     branches: [master, main]
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
+  # ─── Build + real functional smoke test ─────────────────────────────────────
+  # Every job calls scripts/smoke-test.sh, which drives the binary's own
+  # --smoke-test self-check and asserts on its exit code, its stdout and its
+  # session log. No step is wrapped in `|| true`, so CI can actually fail.
   ubuntu-x11:
     name: Ubuntu X11 Build + Smoke Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev nlohmann-json3-dev conky-all xvfb
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev \
+            nlohmann-json3-dev conky-all xvfb
       - name: Configure and build
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
       - name: Run X11 smoke test
-        run: |
-          cd build
-          xvfb-run -a -s "-screen 0 1024x768x24" bash -c 'timeout 10 bash -c "printf \"8\n\" | ./UnifiedConkyControlCenter" || true'
+        run: ./scripts/smoke-test.sh build/UnifiedConkyControlCenter x11
 
   ubuntu-wayland:
     name: Ubuntu Wayland Build + Smoke Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev qt6-wayland-dev nlohmann-json3-dev conky-all weston
+          sudo apt-get install -y cmake g++ qt6-base-dev qt6-tools-dev \
+            qt6-wayland-dev nlohmann-json3-dev conky-all weston xvfb
       - name: Configure and build
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
       - name: Run Wayland smoke test
-        run: |
-          cd build
-          weston --backend=headless-backend.so --width 1024 --height 768 --socket wayland-0 2>/dev/null &
-          WESTON_PID=$!
-          sleep 2
-          timeout 10 bash -c "XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf \"8\n\" | ./UnifiedConkyControlCenter" || true
-          kill -9 $WESTON_PID 2>/dev/null || true
+        run: ./scripts/smoke-test.sh build/UnifiedConkyControlCenter wayland
+      - name: Run X11 smoke test
+        run: ./scripts/smoke-test.sh build/UnifiedConkyControlCenter x11
 
   fedora-x11:
     name: Fedora X11 Build + Smoke Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     container: fedora:latest
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           dnf -y update
-          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel nlohmann-json-devel conky xorg-x11-server-Xvfb
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel \
+            nlohmann-json-devel conky xorg-x11-server-Xvfb
       - name: Configure and build
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
       - name: Run X11 smoke test
-        run: |
-          cd build
-          xvfb-run -a -s "-screen 0 1024x768x24" bash -c 'timeout 10 bash -c "printf \"8\n\" | ./UnifiedConkyControlCenter" || true'
+        run: ./scripts/smoke-test.sh build/UnifiedConkyControlCenter x11
 
   fedora-wayland:
     name: Fedora Wayland Build + Smoke Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     container: fedora:latest
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           dnf -y update
-          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel nlohmann-json-devel conky weston
+          dnf -y install cmake gcc-c++ qt6-qtbase-devel qt6-qttools-devel \
+            nlohmann-json-devel conky weston
       - name: Configure and build
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
       - name: Run Wayland smoke test
+        run: ./scripts/smoke-test.sh build/UnifiedConkyControlCenter wayland
+
+  # ─── Packaging regression check ─────────────────────────────────────────────
+  # Guards the install rules: builds with no APP_VERSION_OVERRIDE (so the
+  # git-describe versioning path is exercised on a full checkout), produces a
+  # DEB and a TGZ, and asserts the archive layout and filenames match what
+  # install.sh and PKGBUILD expect. This is what catches a stray `share/
+  # icons/hicolor/IR}/` directory or a renamed .desktop file.
+  package-check:
+    name: Package Layout Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so `git describe --tags` resolves
+      - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ dpkg-dev qt6-base-dev qt6-tools-dev \
+            nlohmann-json3-dev
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
+      - name: Generate DEB and TGZ
+        run: |
+          cpack -G DEB
+          cpack -G TGZ
+        working-directory: build
+      - name: Assert package contents and naming
+        run: |
+          set -euo pipefail
           cd build
-          weston --backend=headless-backend.so --width 1024 --height 768 --socket wayland-0 2>/dev/null &
-          WESTON_PID=$!
-          sleep 2
-          timeout 10 bash -c "XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-0 QT_QPA_PLATFORM=wayland printf \"8\n\" | ./UnifiedConkyControlCenter" || true
-          kill -9 $WESTON_PID 2>/dev/null || true
+
+          echo "--- artifacts ---"
+          ls -1 *.deb *.tar.gz
+
+          TGZ="$(ls *.tar.gz)"
+          DEB="$(ls *.deb)"
+
+          # 1. Version must resolve to x.y.z, never a bare commit SHA.
+          echo "$TGZ" | grep -Eq 'UnifiedConkyControlCenter-[0-9]+\.[0-9]+\.[0-9]+-Linux-x86_64\.tar\.gz' \
+            || { echo "::error::TGZ name does not carry a real version: $TGZ"; exit 1; }
+          echo "$DEB" | grep -Eq 'unified-conky-control-center_[0-9]+\.[0-9]+\.[0-9]+_amd64\.deb' \
+            || { echo "::error::DEB name does not match install.sh's expectation: $DEB"; exit 1; }
+
+          # 2. Expected files are present.
+          tar -tzf "$TGZ" > /tmp/tgz-listing.txt
+          for want in \
+              "/bin/UnifiedConkyControlCenter" \
+              "/share/applications/unified-conky-control-center.desktop" \
+              "/share/icons/hicolor/256x256/apps/UnifiedConkyControlCenter.png" \
+              "/share/UnifiedConkyControlCenter/config/app_config.json" \
+              "/share/doc/UnifiedConkyControlCenter/LICENSE"; do
+            grep -qE "[^/]*$want\$" /tmp/tgz-listing.txt \
+              || { echo "::error::TGZ is missing $want"; cat /tmp/tgz-listing.txt; exit 1; }
+          done
+
+          # 3. No garbage directories leaked into the archive (regression test
+          #    for the `.../icons/hicolor/IR}` install-rule typo).
+          if grep -q 'IR}' /tmp/tgz-listing.txt; then
+            echo "::error::TGZ contains a malformed install path:"
+            grep 'IR}' /tmp/tgz-listing.txt
+            exit 1
+          fi
+
+          # 4. The .desktop file must declare the icon we actually install.
+          ICON="$(tar -xzf "$TGZ" -O "$(grep 'unified-conky-control-center.desktop$' /tmp/tgz-listing.txt | head -1)" | grep '^Icon=')"
+          test "$ICON" = "Icon=UnifiedConkyControlCenter" \
+            || { echo "::error::desktop Icon does not match installed icon name: $ICON"; exit 1; }
+
+          # 5. License is shipped.
+          dpkg-deb -c "$DEB" | grep -q 'doc/.*/LICENSE' \
+            || { echo "::error::DEB does not ship the license file"; dpkg-deb -c "$DEB"; exit 1; }
+
+          echo "=== PACKAGE CHECK PASSED ==="

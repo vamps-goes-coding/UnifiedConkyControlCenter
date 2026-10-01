@@ -52,6 +52,11 @@ public:
     static int initialize_application(int argc, char* argv[]);
     static void run_application();
     static void quit_application();
+
+    // Automated self-check (--smoke-test): build the UI, walk both modes,
+    // refresh, and report success/failure via the return value + exit code.
+    // Never enters the event loop permanently.
+    static bool run_smoke_test();
     
     // Main window management
     static QWidget* create_main_window();

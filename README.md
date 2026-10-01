@@ -20,7 +20,7 @@ Works on **any Linux distro** - Works on **X11 + Wayland** - Works on **every de
 ![Theme Control](screenshots/theme-control.png)
 
 ### Preferences
-![Preferences Window](screenshots/prefences-window.png)
+![Preferences Window](screenshots/preferences-window.png)
 
 ### System Tray Menu
 ![Tray Menu](screenshots/tray-menu.png)
@@ -51,13 +51,10 @@ Works on **any Linux distro** - Works on **X11 + Wayland** - Works on **every de
 
 ## Install
 
-### Arch Linux (AUR)
+### Arch Linux
 
-```bash
-yay -S unified-conky-control-center
-```
-
-Or build from the PKGBUILD:
+There is not yet an AUR package under this name — install from the bundled
+`PKGBUILD`, which downloads the release tarball:
 
 ```bash
 git clone https://github.com/vamps-goes-coding/UnifiedConkyControlCenter.git
@@ -65,12 +62,16 @@ cd UnifiedConkyControlCenter
 makepkg -si
 ```
 
+> The `PKGBUILD` pulls `UnifiedConkyControlCenter-<version>-Linux-x86_64.tar.gz`
+> from the [Releases](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases)
+> page, so make sure that release exists before building.
+
 ### Debian / Ubuntu
 
 Download the `.deb` from [Releases](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases) and install:
 
 ```bash
-sudo dpkg -i UnifiedConkyControlCenter-*.deb
+sudo dpkg -i unified-conky-control-center_*.deb
 sudo apt-get install -f
 ```
 
@@ -79,13 +80,13 @@ sudo apt-get install -f
 Download the `.rpm` from [Releases](https://github.com/vamps-goes-coding/UnifiedConkyControlCenter/releases) and install:
 
 ```bash
-sudo rpm -i UnifiedConkyControlCenter-*.rpm
+sudo rpm -i unified-conky-control-center-*.rpm
 ```
 
 ### Universal Installer
 
 ```bash
-curl -s https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlCenter/master/install.sh | bash
 ```
 
 ---
@@ -95,10 +96,38 @@ curl -s https://raw.githubusercontent.com/vamps-goes-coding/UnifiedConkyControlC
 ```bash
 git clone https://github.com/vamps-goes-coding/UnifiedConkyControlCenter.git
 cd UnifiedConkyControlCenter
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-sudo make install
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+sudo cmake --install build
+```
+
+The version is taken from `git describe --tags`. Building from a tarball or a
+shallow clone without tags falls back to the version in `CMakeLists.txt`; you
+can also pin it explicitly with `-DAPP_VERSION_OVERRIDE=1.2.3`.
+
+---
+
+## Verifying a Build
+
+Run the unit tests (no display server needed):
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+The binary also ships its own self-check, which builds the real window, walks
+both modes and refreshes every tab:
+
+```bash
+./build/UnifiedConkyControlCenter --smoke-test   # exit 0 = pass
+```
+
+`scripts/smoke-test.sh` wraps that under a real display server and also
+asserts on the session log — this is what CI runs:
+
+```bash
+./scripts/smoke-test.sh build/UnifiedConkyControlCenter x11
+./scripts/smoke-test.sh build/UnifiedConkyControlCenter wayland
 ```
 
 ---

@@ -2,6 +2,9 @@
 #include "config_manager.h"
 #include "ui_manager.h"
 #include "utils.h"
+#include "app_info.h"
+#include "logger.h"
+#include "conky_manager.h"
 #include <QListWidget>
 #include <QVBoxLayout>
 #include "hardware_detector.h"
@@ -135,9 +138,20 @@ void PreferencesDialog::setupUI() {
     });
 
 
-    // --- App Info Tab ---
+    // --- General Tab ---
+    // Read-only status summary; refreshed in loadCurrentConfig().
     auto* infoTab = new QWidget();
     auto* infoLayout = new QVBoxLayout(infoTab);
+
+    auto* infoGroup = new QGroupBox("Current Session");
+    auto* infoGroupLayout = new QVBoxLayout(infoGroup);
+    generalInfoLabel = new QLabel();
+    generalInfoLabel->setTextFormat(Qt::RichText);
+    generalInfoLabel->setWordWrap(true);
+    generalInfoLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    generalInfoLabel->setStyleSheet("line-height: 1.5;");
+    infoGroupLayout->addWidget(generalInfoLabel);
+    infoLayout->addWidget(infoGroup);
     infoLayout->addStretch();
 
 
@@ -336,18 +350,22 @@ void PreferencesDialog::setupUI() {
     auto* hwLayout = new QVBoxLayout(hwTab);
     auto* hwForm = new QFormLayout();
 
+    hwForm->addRow(new QLabel(
+        "Chosen values are saved to app_config.json and can be referenced "
+        "from your panel configurations."));
+
     auto gpus = HardwareDetector::detect_gpus();
-    auto* gpuCombo = new QComboBox();
+    gpuCombo = new QComboBox();
     for (const auto& g : gpus) gpuCombo->addItem(QString::fromStdString(g.name), QString::fromStdString(g.id));
     hwForm->addRow("Default GPU:", gpuCombo);
 
     auto nets = HardwareDetector::detect_network_interfaces();
-    auto* netCombo = new QComboBox();
+    netCombo = new QComboBox();
     for (const auto& n : nets) netCombo->addItem(QString::fromStdString(n.name), QString::fromStdString(n.id));
     hwForm->addRow("Primary Network:", netCombo);
 
     auto audio = HardwareDetector::detect_audio_cards();
-    auto* audioCombo = new QComboBox();
+    audioCombo = new QComboBox();
     for (const auto& a : audio) audioCombo->addItem(QString::fromStdString(a.name), QString::fromStdString(a.id));
     hwForm->addRow("Default Sound Card:", audioCombo);
 
@@ -358,11 +376,11 @@ void PreferencesDialog::setupUI() {
         gpuCombo->clear();
         for (const auto& g : HardwareDetector::detect_gpus()) 
             gpuCombo->addItem(QString::fromStdString(g.name), QString::fromStdString(g.id));
-            
+
         netCombo->clear();
         for (const auto& n : HardwareDetector::detect_network_interfaces()) 
             netCombo->addItem(QString::fromStdString(n.name), QString::fromStdString(n.id));
-            
+
         audioCombo->clear();
         for (const auto& a : HardwareDetector::detect_audio_cards()) 
             audioCombo->addItem(QString::fromStdString(a.name), QString::fromStdString(a.id));
@@ -430,8 +448,42 @@ void PreferencesDialog::loadCurrentConfig() {
     
 
 
-    // General
-    
+    // General (read-only status summary)
+    {
+        const auto panels = Utils::discover_panels();
+        const auto running = ConkyManager::get_running_configs(true);
+
+        auto row = [](const QString& k, const QString& v) {
+            return QString("<tr><td style='padding-right:16px;white-space:nowrap;'>"
+                           "<b>%1</b></td><td>%2</td></tr>").arg(k, v);
+        };
+
+        generalInfoLabel->setText(
+            "<table cellspacing='0'>"
+            + row("Version", QString::fromUtf8(AppInfo::get_version()))
+            + row("Display server", QString::fromStdString(config.get_active_display_server_key()))
+            + row("Conky binary", QString::fromStdString(config.get_active_conky_binary()))
+            + row("Conky folder", QString::fromStdString(config.get_conky_wayland_directory().string()))
+            + row("Themes folder", QString::fromStdString(config.get_themes_directory().string()))
+            + row("Log file", QString::fromStdString(Logger::instance().get_log_file_path().string()))
+            + row("Panels discovered", QString::number(panels.size()))
+            + row("Panels running", QString::number(running.size()))
+            + "</table>");
+    }
+
+
+    // Hardware selections
+    {
+        const auto& hw = config.get_hardware_prefs();
+        auto select_by_data = [](QComboBox* combo, const std::string& value) {
+            if (value.empty()) return;
+            const int idx = combo->findData(QString::fromStdString(value));
+            if (idx >= 0) combo->setCurrentIndex(idx);
+        };
+        select_by_data(gpuCombo, hw.count("gpu") ? hw.at("gpu") : std::string());
+        select_by_data(netCombo, hw.count("network") ? hw.at("network") : std::string());
+        select_by_data(audioCombo, hw.count("audio") ? hw.at("audio") : std::string());
+    }
 
 // Panels - Startup List
     panelsList->clear();
@@ -562,7 +614,11 @@ void PreferencesDialog::saveAndAccept() {
     config.set_conky_config_path(conkyPathEdit->text().toStdString());
     config.set_themes_path(themesPathEdit->text().toStdString());
 
-    // Update General
+    // Update Hardware selections. An empty combo (no device found) clears the
+    // stored preference rather than persisting an empty string.
+    config.set_hardware_pref("gpu", gpuCombo->currentData().toString().toStdString());
+    config.set_hardware_pref("network", netCombo->currentData().toString().toStdString());
+    config.set_hardware_pref("audio", audioCombo->currentData().toString().toStdString());
 
     // Update Panels
     config.get_ui_config().default_panels_to_start.clear();

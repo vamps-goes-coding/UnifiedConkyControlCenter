@@ -81,4 +81,8 @@ id_rsa
 id_ed25519
 id_ecdsa
 id_dsa
+# AI assistant workspaces (local only - a full project copy lives in here)
+.kilo/
+.kilocode/
+
 .aider*

@@ -1,4 +1,5 @@
 #include "error_dialog.h"
+#include "error_report_dialog.h"
 #include "logger.h"
 
 #include <QStyle>
@@ -7,6 +8,7 @@
 
 ErrorDialog::ErrorDialog(QWidget* parent)
     : QDialog(parent)
+    , report_button_(nullptr)
 {
     setWindowTitle("Error");
     setMinimumWidth(500);
@@ -25,15 +27,17 @@ void ErrorDialog::show_warning(QWidget* parent, const QString& title, const QStr
     dialog.exec();
 }
 
-void ErrorDialog::show_error(QWidget* parent, const QString& title, const QString& message, const QString& details) {
+void ErrorDialog::show_error(QWidget* parent, const QString& title, const QString& message,
+                             const QString& details, bool offer_report) {
     ErrorDialog dialog(parent);
-    dialog.setup_ui(ErrorSeverity::Error, title, message, details);
+    dialog.setup_ui(ErrorSeverity::Error, title, message, details, QStringList(), offer_report);
     dialog.exec();
 }
 
-void ErrorDialog::show_critical(QWidget* parent, const QString& title, const QString& message, const QString& details) {
+void ErrorDialog::show_critical(QWidget* parent, const QString& title, const QString& message,
+                                const QString& details, bool offer_report) {
     ErrorDialog dialog(parent);
-    dialog.setup_ui(ErrorSeverity::Critical, title, message, details);
+    dialog.setup_ui(ErrorSeverity::Critical, title, message, details, QStringList(), offer_report);
     dialog.exec();
 }
 
@@ -47,7 +51,8 @@ void ErrorDialog::show_error_with_suggestions(QWidget* parent, const QString& ti
 }
 
 void ErrorDialog::setup_ui(ErrorSeverity severity, const QString& title, const QString& message, 
-                           const QString& details, const QStringList& suggestions) {
+                           const QString& details, const QStringList& suggestions,
+                           bool offer_report) {
     setWindowTitle(title);
     
     QVBoxLayout* main_layout = new QVBoxLayout(this);
@@ -176,6 +181,25 @@ void ErrorDialog::setup_ui(ErrorSeverity severity, const QString& title, const Q
         button_layout->addWidget(copy_button_);
     }
     
+    if (offer_report) {
+        report_button_ = new QPushButton("Report Issue...");
+        report_button_->setToolTip("Open a pre-filled GitHub issue, including system details and recent log lines.");
+        report_button_->setStyleSheet(
+            "QPushButton { "
+            "  background-color: #f0f0f0; "
+            "  color: #333; "
+            "  border: 1px solid #ccc; "
+            "  padding: 8px 16px; "
+            "  border-radius: 4px; "
+            "} "
+            "QPushButton:hover { "
+            "  background-color: #e0e0e0; "
+            "}"
+        );
+        connect(report_button_, &QPushButton::clicked, this, &ErrorDialog::report_issue);
+        button_layout->addWidget(report_button_);
+    }
+
     ok_button_ = new QPushButton("OK");
     ok_button_->setStyleSheet(
         "QPushButton { "
@@ -235,4 +259,14 @@ void ErrorDialog::copy_suggestions() {
         QApplication::clipboard()->setText(suggestions_text_content_);
         LOG_INFO("Troubleshooting suggestions copied to clipboard");
     }
+}
+
+void ErrorDialog::report_issue() {
+    // Opens on top of this dialog; the error stays visible behind it so the
+    // user can still read the details while filling in the report.
+    LOG_INFO("Opening issue reporter for: " + message_label_->text().toStdString());
+    ErrorReportDialog::show_report_dialog(this,
+                                          message_label_->text(),
+                                          details_,
+                                          QStringLiteral("main"));
 }
