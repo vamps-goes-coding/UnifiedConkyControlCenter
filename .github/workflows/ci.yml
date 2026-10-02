@@ -168,8 +168,13 @@ jobs:
           test "$ICON" = "Icon=UnifiedConkyControlCenter" \
             || { echo "::error::desktop Icon does not match installed icon name: $ICON"; exit 1; }
 
-          # 5. License is shipped.
-          dpkg-deb -c "$DEB" | grep -q 'doc/.*/LICENSE' \
-            || { echo "::error::DEB does not ship the license file"; dpkg-deb -c "$DEB"; exit 1; }
+          # 5. License is shipped. Dump the listing to a file first: under
+          #    `set -o pipefail`, `dpkg-deb -c | grep -q` is racy — grep -q
+          #    exits on the first match, dpkg-deb then dies on SIGPIPE, and
+          #    pipefail reports the pipeline as failed even though the file
+          #    is present. Same shape as the tar listing above.
+          dpkg-deb -c "$DEB" > /tmp/deb-listing.txt
+          grep -q 'doc/.*/LICENSE' /tmp/deb-listing.txt \
+            || { echo "::error::DEB does not ship the license file"; cat /tmp/deb-listing.txt; exit 1; }
 
           echo "=== PACKAGE CHECK PASSED ==="
