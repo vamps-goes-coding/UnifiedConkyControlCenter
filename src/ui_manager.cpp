@@ -3,6 +3,7 @@
 #include "conky_manager.h"
 #include "logger.h"
 #include "utils.h"
+#include "screens.h"
 #include "config_parser.h"
 #include "config_manager.h"
 #include "theme_manager.h"
@@ -1900,6 +1901,15 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     path_label->setStyleSheet("color: #666; font-size: 11px;");
     path_label->setWordWrap(true);
     adjust_layout->addWidget(path_label, 3, 0, 1, 2);
+
+    // Coordinate-space note: values shown/entered are desktop positions.
+    // On Wayland the file stores output-relative margins, so the target
+    // output's origin is added for display and subtracted on save.
+    QLabel* coord_info = new QLabel();
+    coord_info->setObjectName("gapCoordInfoLabel");
+    coord_info->setStyleSheet("color: #666; font-size: 11px;");
+    coord_info->setWordWrap(true);
+    adjust_layout->addWidget(coord_info, 4, 0, 1, 2);
     
     main_layout->addWidget(adjust_group);
     
@@ -1972,21 +1982,42 @@ void UIManager::refresh_panels(QComboBox* panel_combo) {
 
 void UIManager::load_gap_values(QSpinBox* gap_x_spin, QSpinBox* gap_y_spin, const std::string& panel_name) {
     if (!gap_x_spin || !gap_y_spin) return;
-    
+
     std::string path = Utils::get_conky_config_path(panel_name).string();
     int x = ConfigParser::get_gap_x(path);
     int y = ConfigParser::get_gap_y(path);
-    
-    gap_x_spin->setValue(x);
-    gap_y_spin->setValue(y);
+
+    // Show desktop coordinates: add the target output's origin so the
+    // numbers match what the user sees on screen (identity on X11).
+    const auto [ox, oy] = Screens::active_output_origin();
+    gap_x_spin->setValue(x + ox);
+    gap_y_spin->setValue(y + oy);
+
+    if (QWidget* parent = gap_x_spin->parentWidget()) {
+        if (QLabel* info = parent->findChild<QLabel*>("gapCoordInfoLabel")) {
+            const std::string server =
+                ConfigManager::instance().get_active_display_server_key();
+            info->setText(QString::fromStdString(
+                "Showing desktop position (" + server + "; output origin " +
+                std::to_string(ox) + "," + std::to_string(oy) +
+                " applied on save)."));
+        }
+    }
 }
 
 void UIManager::apply_gap_changes(const std::string& panel_name, int gap_x, int gap_y) {
     std::string path = Utils::get_conky_config_path(panel_name).string();
 
+    // Convert desktop coordinates back to the file's coordinate space by
+    // subtracting the target output's origin (identity on X11). Negative
+    // layer-shell margins are meaningless, so clamp at zero.
+    const auto [ox, oy] = Screens::active_output_origin();
+    const int file_x = std::max(0, gap_x - ox);
+    const int file_y = std::max(0, gap_y - oy);
+
     // 1. Save the new gap values to the config file first
     try {
-        if (!ConfigParser::set_gap_values(path, gap_x, gap_y)) {
+        if (!ConfigParser::set_gap_values(path, file_x, file_y)) {
             QMessageBox::warning(nullptr, "Gap Adjustment Failed",
                 QString::fromStdString("Could not write gap values to:\n" + path));
             return;

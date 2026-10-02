@@ -81,6 +81,7 @@ set(SOURCES
     src/theme_manager.cpp
     src/ui_manager.cpp
     src/utils.cpp
+    src/screens.cpp
     src/first_run_setup.cpp
     src/conky_syntax_highlighter.cpp
     src/in_app_editor.cpp
