@@ -31,7 +31,21 @@ else()
     endif()
 endif()
 
-message(STATUS "Building version: ${APP_VERSION}")
+# Two views of the same number:
+#   APP_VERSION          what the About box and crash reports show. Keeps the
+#                        "-<N>-g<sha>" git describe appends once HEAD is past
+#                        the last tag, so an untagged build identifies itself.
+#   APP_PACKAGE_VERSION  what CPack names the archives. Always a bare x.y.z:
+#                        install.sh rebuilds package file names from its own
+#                        VERSION_NUM, so a suffix here would break installing
+#                        from any master build and turn CI's package-check red
+#                        after every commit that isn't exactly on a tag.
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" APP_PACKAGE_VERSION "${APP_VERSION}")
+if(NOT APP_PACKAGE_VERSION)
+    set(APP_PACKAGE_VERSION "${PROJECT_VERSION}")
+endif()
+
+message(STATUS "Building version: ${APP_VERSION} (packages: ${APP_PACKAGE_VERSION})")
 
 # Enable ccache if available to speed up rebuilds across different build directories
 find_program(CCACHE_PROGRAM ccache)
@@ -140,7 +154,7 @@ install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
 set(CPACK_PACKAGE_NAME "UnifiedConkyControlCenter")
 set(CPACK_DEBIAN_PACKAGE_NAME "unified-conky-control-center")
 set(CPACK_RPM_PACKAGE_NAME "unified-conky-control-center")
-set(CPACK_PACKAGE_VERSION "${APP_VERSION}")
+set(CPACK_PACKAGE_VERSION "${APP_PACKAGE_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Unified Conky Control Center")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A unified control center for managing Conky configurations across X11 and Wayland")
 set(CPACK_PACKAGE_DESCRIPTION "Unified Conky Control Center provides a graphical interface to manage, edit, and control Conky panel configurations on both X11 and Wayland display servers.")
