@@ -4,6 +4,7 @@
 #include "logger.h"
 #include "utils.h"
 #include "screens.h"
+#include "placement_io.h"
 #include "config_parser.h"
 #include "config_manager.h"
 #include "theme_manager.h"
@@ -1868,12 +1869,16 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     QGroupBox* adjust_group = new QGroupBox("Current Configuration");
     QGridLayout* adjust_layout = new QGridLayout(adjust_group);
     
+    // Desktop coordinates, not gaps: a monitor right of a 3840-wide one puts
+    // a panel past x = 7680, so the old +/-5000 would silently clip it. Also
+    // allows negatives - layer-shell accepts them and X11 space can start
+    // left of the origin on a layout whose primary isn't leftmost.
     QSpinBox* gap_x_spin = new QSpinBox();
-    gap_x_spin->setRange(-5000, 5000);
+    gap_x_spin->setRange(-20000, 20000);
     gap_x_spin->setObjectName("gapXSpin");
     
     QSpinBox* gap_y_spin = new QSpinBox();
-    gap_y_spin->setRange(-5000, 5000);
+    gap_y_spin->setRange(-20000, 20000);
     gap_y_spin->setObjectName("gapYSpin");
     
     adjust_layout->addWidget(new QLabel("Gap X (Horizontal):"), 0, 0);
@@ -1983,43 +1988,49 @@ void UIManager::refresh_panels(QComboBox* panel_combo) {
 void UIManager::load_gap_values(QSpinBox* gap_x_spin, QSpinBox* gap_y_spin, const std::string& panel_name) {
     if (!gap_x_spin || !gap_y_spin) return;
 
-    std::string path = Utils::get_conky_config_path(panel_name).string();
-    int x = ConfigParser::get_gap_x(path);
-    int y = ConfigParser::get_gap_y(path);
-
-    // Show desktop coordinates: add the target output's origin so the
-    // numbers match what the user sees on screen (identity on X11).
-    const auto [ox, oy] = Screens::active_output_origin();
-    gap_x_spin->setValue(x + ox);
-    gap_y_spin->setValue(y + oy);
+    // effective_placement already answers in desktop coordinates - stored
+    // that way, or imported from the .conf just now - so nothing is added
+    // here and nothing is subtracted on save. Both directions share one
+    // meaning for x/y, which is what lets the numbers on screen be the
+    // numbers the placement map drags.
+    const fs::path conf = Utils::get_conky_config_path(panel_name);
+    const PanelPlacement placement = PlacementIO::effective_placement(panel_name, conf);
+    gap_x_spin->setValue(placement.x);
+    gap_y_spin->setValue(placement.y);
 
     if (QWidget* parent = gap_x_spin->parentWidget()) {
         if (QLabel* info = parent->findChild<QLabel*>("gapCoordInfoLabel")) {
             const std::string server =
                 ConfigManager::instance().get_active_display_server_key();
+            const auto [ox, oy] = Screens::output_origin(placement.output);
+            const std::string output =
+                placement.output.empty() ? std::string("(compositor default)")
+                                         : placement.output;
             info->setText(QString::fromStdString(
-                "Showing desktop position (" + server + "; output origin " +
-                std::to_string(ox) + "," + std::to_string(oy) +
+                "Showing desktop position (" + server + "; output " + output +
+                ", origin " + std::to_string(ox) + "," + std::to_string(oy) +
                 " applied on save)."));
         }
     }
 }
 
 void UIManager::apply_gap_changes(const std::string& panel_name, int gap_x, int gap_y) {
-    std::string path = Utils::get_conky_config_path(panel_name).string();
+    const fs::path conf = Utils::get_conky_config_path(panel_name);
 
-    // Convert desktop coordinates back to the file's coordinate space by
-    // subtracting the target output's origin (identity on X11). Negative
-    // layer-shell margins are meaningless, so clamp at zero.
-    const auto [ox, oy] = Screens::active_output_origin();
-    const int file_x = std::max(0, gap_x - ox);
-    const int file_y = std::max(0, gap_y - oy);
+    // Desktop coordinates in, desktop coordinates stored. sync_placement_to_
+    // conf does the per-server conversion on the way out (origin-subtracted
+    // on Wayland, verbatim on X11). Negative layer-shell margins are valid,
+    // so nothing is clamped: clamping used to pin any panel the user dragged
+    // past a monitor's edge back to x=0/y=0.
+    PanelPlacement placement = PlacementIO::effective_placement(panel_name, conf);
+    placement.x = gap_x;
+    placement.y = gap_y;
 
-    // 1. Save the new gap values to the config file first
+    // 1. Save the placement to app_config.json and the config file first
     try {
-        if (!ConfigParser::set_gap_values(path, file_x, file_y)) {
+        if (!PlacementIO::save_placement(panel_name, conf, placement)) {
             QMessageBox::warning(nullptr, "Gap Adjustment Failed",
-                QString::fromStdString("Could not write gap values to:\n" + path));
+                QString::fromStdString("Could not write gap values to:\n" + conf.string()));
             return;
         }
     } catch (const std::exception& e) {

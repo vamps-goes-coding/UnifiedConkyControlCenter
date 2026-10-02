@@ -1,5 +1,6 @@
 #include "conky_manager.h"
 #include "config_manager.h"
+#include "placement_io.h"
 #include "utils.h"
 #include "logger.h"
 #include <nlohmann/json.hpp>
@@ -14,6 +15,7 @@
 #include <cstdio>
 #include <memory>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QTimer>
 #include <iostream>
 #include <stdexcept>
@@ -226,8 +228,8 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     reap_zombies();
 
     // Build argv from the active display server's config (binary + leading
-    // flags), then launch detached. QProcess::startDetached is fire-and-
-    // forget, so verify via pgrep below before reporting success.
+    // flags), then launch detached. Launching is fire-and-forget, so verify
+    // via pgrep below before reporting success.
     const auto& cfg = ConfigManager::instance();
     QString q_config_path = QString::fromStdString(config_path.string());
     if (q_config_path.isEmpty()) {
@@ -239,9 +241,32 @@ bool ConkyManager::start_panel(const std::string& panel_name, bool skip_check) {
     }
     args << "-c" << q_config_path;
 
+    // Per-panel output selection. The .conf's wayland_output is the primary
+    // channel - it wins over everything in conky, and it survives any start
+    // that happens outside UCCC (KDE autostart, a shell). The environment
+    // variable is the fallback for builds that only read the variable, and is
+    // inert when the key is present. Left inherited untouched when the panel
+    // opts out of injection, so the toggle means "UCCC does not manage this".
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    const PanelPlacement placement = PlacementIO::effective_placement(panel_name, config_path);
+    if (cfg.get_active_display_server_key() == "wayland" && placement.launch_env &&
+        !placement.output.empty()) {
+        environment.insert(QStringLiteral("CONKY_WAYLAND_OUTPUT"),
+                           QString::fromStdString(placement.output));
+    }
+
+    // The MEMBER overload rather than the static one: it honours the
+    // environment set above while still double-forking, so panels keep
+    // outliving UCCC exactly as the detached-launch note above requires.
+    // Qt implements the static overload in terms of this member, so nothing
+    // else about the behaviour changes.
+    QProcess launcher;
+    launcher.setProgram(QString::fromStdString(cfg.get_active_conky_binary()));
+    launcher.setArguments(args);
+    launcher.setProcessEnvironment(environment);
+
     qint64 pid = 0;
-    if (!QProcess::startDetached(QString::fromStdString(cfg.get_active_conky_binary()),
-                                 args, QString(), &pid)) {
+    if (!launcher.startDetached(&pid)) {
         throw std::runtime_error("Failed to start Conky panel: " + panel_name);
     }
 

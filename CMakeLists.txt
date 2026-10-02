@@ -97,6 +97,7 @@ set(SOURCES
     src/utils.cpp
     src/screens.cpp
     src/placement.cpp
+    src/placement_io.cpp
     src/first_run_setup.cpp
     src/conky_syntax_highlighter.cpp
     src/in_app_editor.cpp
