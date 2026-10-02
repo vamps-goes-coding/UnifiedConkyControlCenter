@@ -5,6 +5,7 @@
 #include "utils.h"
 #include "screens.h"
 #include "placement_io.h"
+#include "monitor_map_widget.h"
 #include "config_parser.h"
 #include "config_manager.h"
 #include "theme_manager.h"
@@ -1854,7 +1855,9 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     title->setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;");
     main_layout->addWidget(title);
     
-    // Panel selector
+    // Panel selector - shared by both sub-tabs below, so picking a panel
+    // once carries across Gaps and Placement with no second list to keep in
+    // sync.
     QGroupBox* select_group = new QGroupBox("Select Panel");
     QHBoxLayout* select_layout = new QHBoxLayout(select_group);
     QComboBox* panel_combo = new QComboBox();
@@ -1864,6 +1867,31 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
     select_layout->addWidget(panel_combo);
     select_layout->addStretch();
     main_layout->addWidget(select_group);
+    
+    QTabWidget* sub_tabs = new QTabWidget(tab);
+    sub_tabs->setObjectName("gapSubTabs");
+    sub_tabs->addTab(create_gaps_sub_tab(sub_tabs, panel_combo), "Gaps");
+    sub_tabs->addTab(create_placement_sub_tab(sub_tabs, panel_combo), "Placement");
+    main_layout->addWidget(sub_tabs, 1);
+    
+    // Initial data load - one refresh populates the shared selector, whose
+    // change signal then loads both sub-tabs.
+    QTimer::singleShot(200, [panel_combo]() {
+        try {
+            refresh_panels(panel_combo);
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR in initial panel refresh: " << e.what() << std::endl;
+        }
+    });
+    
+    return tab;
+}
+
+QWidget* UIManager::create_gaps_sub_tab(QWidget* parent, QComboBox* panel_combo) {
+    QWidget* tab = new QWidget(parent);
+    QVBoxLayout* main_layout = new QVBoxLayout(tab);
+    main_layout->setSpacing(15);
+    main_layout->setContentsMargins(0, 10, 0, 0);
     
     // Adjustment section
     QGroupBox* adjust_group = new QGroupBox("Current Configuration");
@@ -1959,19 +1987,265 @@ QWidget* UIManager::create_gap_tab(QWidget* parent) {
         }
     });
     
-    QObject::connect(refresh_btn, &QPushButton::clicked, [panel_combo, gap_x_spin, gap_y_spin]() {
+    QObject::connect(refresh_btn, &QPushButton::clicked, [panel_combo]() {
         refresh_panels(panel_combo);
     });
     
-    // Initial data load
-    QTimer::singleShot(200, [panel_combo]() {
+    return tab;
+}
+
+QWidget* UIManager::create_placement_sub_tab(QWidget* parent, QComboBox* panel_combo) {
+    QWidget* tab = new QWidget(parent);
+    QVBoxLayout* layout = new QVBoxLayout(tab);
+    layout->setSpacing(12);
+    layout->setContentsMargins(0, 10, 0, 0);
+
+    const std::vector<MonitorRect> monitors = Screens::monitors();
+
+    // ── Controls ─────────────────────────────────────────────────────────
+    QHBoxLayout* controls = new QHBoxLayout();
+
+    controls->addWidget(new QLabel("Output:"));
+    QComboBox* output_combo = new QComboBox();
+    output_combo->setObjectName("placementOutputCombo");
+    output_combo->setMinimumWidth(180);
+    output_combo->addItem(QStringLiteral("(auto)"), QString());
+    for (const auto& monitor : monitors) {
+        output_combo->addItem(QString::fromStdString(monitor.name),
+                              QString::fromStdString(monitor.name));
+    }
+    controls->addWidget(output_combo);
+
+    QPushButton* apply_btn = new QPushButton("Apply Placement");
+    apply_btn->setStyleSheet(
+        "QPushButton { padding: 8px 20px; background-color: #2196F3; color: white; "
+        "border: none; border-radius: 3px; font-weight: bold; }");
+    QPushButton* refresh_btn = new QPushButton("Refresh");
+    controls->addWidget(apply_btn);
+    controls->addWidget(refresh_btn);
+    controls->addStretch();
+    layout->addLayout(controls);
+
+    // ── Canvas ───────────────────────────────────────────────────────────
+    MonitorMapWidget* map = new MonitorMapWidget(tab);
+    map->setObjectName("placementMonitorMap");
+    map->setMonitors(monitors);
+    layout->addWidget(map, 1);
+
+    QLabel* status = new QLabel();
+    status->setObjectName("placementStatusLabel");
+    status->setStyleSheet("color: #666; font-size: 11px;");
+    status->setWordWrap(true);
+    layout->addWidget(status);
+
+    // ── Staged state ─────────────────────────────────────────────────────
+    // Changes are staged here and only written on Apply. Held in a shared_ptr
+    // captured by value: the tab is rebuilt on every mode switch and this
+    // function's frame is long gone by then, so each lambda owning a share is
+    // what frees the state when the connections are torn down.
+    struct Staged {
+        std::string panel;
+        PanelPlacement pending;
+        bool dirty = false;
+        bool syncing = false;  // guards combo -> state -> combo feedback
+    };
+    auto staged = std::make_shared<Staged>();
+
+    auto markers_for = []() {
+        std::vector<PanelMarker> markers;
+        for (const auto& panel : Utils::discover_panels()) {
+            try {
+                const PanelPlacement placement = PlacementIO::effective_placement(
+                    panel, Utils::get_conky_config_path(panel));
+                markers.push_back({panel, placement.x, placement.y});
+            } catch (const std::exception&) {
+                // An unreadable conf still deserves a marker rather than
+                // making the panel vanish from the map.
+                markers.push_back({panel, 0, 0});
+            }
+        }
+        return markers;
+    };
+
+    // Other panels always show their committed position; only the active one
+    // reflects what is staged.
+    auto sync_markers = [map, staged, markers_for]() {
+        std::vector<PanelMarker> markers = markers_for();
+        for (auto& marker : markers) {
+            if (marker.name == staged->panel) {
+                marker.x = staged->pending.x;
+                marker.y = staged->pending.y;
+            }
+        }
+        map->setPanels(markers);
+    };
+
+    auto update_status = [status, staged]() {
+        if (staged->panel.empty()) {
+            status->setText(
+                "Drag a panel onto a monitor, or click a monitor to send the "
+                "selected panel to it. Nothing is written until you apply.");
+            return;
+        }
+        const std::string output = staged->pending.output.empty()
+                                       ? std::string("(auto)")
+                                       : staged->pending.output;
+        const auto [ox, oy] = Screens::output_origin(staged->pending.output);
+        std::string text = staged->panel + " -> " + output + " at desktop (" +
+                           std::to_string(staged->pending.x) + ", " +
+                           std::to_string(staged->pending.y) +
+                           "); origin " + std::to_string(ox) + "," +
+                           std::to_string(oy) + " applied on save.";
+        if (staged->dirty) text += "   [not applied yet]";
+        status->setText(QString::fromStdString(text));
+    };
+
+    auto sync_output_combo = [output_combo, staged]() {
+        staged->syncing = true;
+        if (staged->pending.output.empty()) {
+            output_combo->setCurrentIndex(0);
+        } else {
+            const int index =
+                output_combo->findText(QString::fromStdString(staged->pending.output));
+            output_combo->setCurrentIndex(index >= 0 ? index : 0);
+        }
+        staged->syncing = false;
+    };
+
+    auto load_panel = [staged, map, sync_output_combo, update_status,
+                       sync_markers](const QString& panel) {
+        staged->dirty = false;
+        if (panel.isEmpty()) {
+            staged->panel.clear();
+            update_status();
+            sync_markers();
+            return;
+        }
+
+        staged->panel = panel.toStdString();
         try {
-            refresh_panels(panel_combo);
+            staged->pending = PlacementIO::effective_placement(
+                staged->panel, Utils::get_conky_config_path(staged->panel));
         } catch (const std::exception& e) {
-            std::cerr << "ERROR in initial panel refresh: " << e.what() << std::endl;
+            std::cerr << "ERROR loading placement: " << e.what() << std::endl;
+            staged->pending = PanelPlacement{};
+        }
+
+        map->setActivePanel(staged->panel);
+        sync_output_combo();
+        update_status();
+        sync_markers();
+    };
+
+    // ── Connections ──────────────────────────────────────────────────────
+    QObject::connect(panel_combo, &QComboBox::currentTextChanged, load_panel);
+
+    // Choosing an output carries the panel with it: layer-shell measures
+    // margins inside a single output, so a position left outside the chosen
+    // one would render off screen entirely.
+    auto move_to_output = [staged, monitors, sync_output_combo, update_status,
+                           sync_markers](const std::string& wanted) {
+        if (wanted == staged->pending.output) return;
+        if (const MonitorRect* target = monitor_by_name(monitors, wanted)) {
+            const MonitorRect* current =
+                monitor_for_point(monitors, staged->pending.x, staged->pending.y);
+            staged->pending = retarget(staged->pending, current, *target);
+        }
+        staged->pending.output = wanted;
+        staged->dirty = true;
+        sync_output_combo();
+        update_status();
+        sync_markers();
+    };
+
+    QObject::connect(output_combo, &QComboBox::currentTextChanged,
+                     [staged, output_combo, move_to_output](const QString&) {
+        if (staged->syncing || staged->panel.empty()) return;
+        move_to_output(output_combo->currentData().toString().toStdString());
+    });
+
+    // A drop picks the monitor it landed on, or the margins would be measured
+    // against the wrong origin and the panel would not appear where it was
+    // dropped.
+    QObject::connect(map, &MonitorMapWidget::panelDropped,
+                     [staged, monitors, move_to_output, update_status,
+                      sync_markers](int x, int y) {
+        if (staged->panel.empty()) return;
+        staged->pending.x = x;
+        staged->pending.y = y;
+        if (const MonitorRect* landed = monitor_for_point(monitors, x, y)) {
+            move_to_output(landed->name);
+        }
+        staged->dirty = true;
+        update_status();
+        sync_markers();
+    });
+
+    QObject::connect(map, &MonitorMapWidget::monitorClicked,
+                     [staged, move_to_output](const QString& output) {
+        if (staged->panel.empty()) return;
+        move_to_output(output.toStdString());
+    });
+
+    // Dragging a different panel on the map selects it up top too, so the two
+    // never disagree about which panel is being edited.
+    QObject::connect(map, &MonitorMapWidget::activePanelChanged,
+                     [panel_combo](const QString& panel) {
+        const int index = panel_combo->findText(panel);
+        if (index >= 0) panel_combo->setCurrentIndex(index);
+    });
+
+    QObject::connect(apply_btn, &QPushButton::clicked,
+                     [staged, update_status, sync_markers]() {
+        if (staged->panel.empty()) return;
+
+        const fs::path conf = Utils::get_conky_config_path(staged->panel);
+        try {
+            if (!PlacementIO::save_placement(staged->panel, conf, staged->pending)) {
+                QMessageBox::warning(nullptr, "Placement Failed",
+                    QString::fromStdString("Could not write placement to:\n" + conf.string()));
+                return;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR saving placement: " << e.what() << std::endl;
+            QMessageBox::warning(nullptr, "Placement Failed",
+                QString::fromStdString("Error writing placement:\n" + std::string(e.what())));
+            return;
+        }
+
+        staged->dirty = false;
+        update_status();
+        sync_markers();
+
+        // The Gaps sub-tab shows the same coordinates - keep it truthful.
+        if (QWidget* window = main_window_instance) {
+            QSpinBox* gap_x_spin = window->findChild<QSpinBox*>("gapXSpin");
+            QSpinBox* gap_y_spin = window->findChild<QSpinBox*>("gapYSpin");
+            if (gap_x_spin != nullptr && gap_y_spin != nullptr) {
+                load_gap_values(gap_x_spin, gap_y_spin, staged->panel);
+            }
+        }
+
+        try {
+            ConkyManager::restart_panels_with_verification({staged->panel});
+            show_tray_message("Placement Applied",
+                              QString("Moved %1")
+                                  .arg(QString::fromStdString(staged->panel))
+                                  .toStdString());
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR restarting panel: " << e.what() << std::endl;
+            QMessageBox::warning(nullptr, "Restart Failed",
+                QString::fromStdString(
+                    "Placement saved but panel restart failed:\n" + std::string(e.what())));
         }
     });
-    
+
+    QObject::connect(refresh_btn, &QPushButton::clicked,
+                     [panel_combo, load_panel]() {
+        refresh_panels(panel_combo);
+        load_panel(panel_combo->currentText());
+    });
+
     return tab;
 }
 

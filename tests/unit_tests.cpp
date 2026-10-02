@@ -640,6 +640,58 @@ static void test_import_placement() {
     CHECK_EQ(blind.output, std::string("HDMI-A-1"));
 }
 
+static void test_retarget() {
+    const auto m = demo_layout();
+    const MonitorRect& dp = *monitor_by_name(m, "DP-1");
+    const MonitorRect& hdmi = *monitor_by_name(m, "HDMI-A-1");
+
+    // Same monitor: choosing it again changes nothing.
+    PanelPlacement on_dp;
+    on_dp.output = "DP-1";
+    on_dp.x = 120;
+    on_dp.y = 340;
+    const PanelPlacement same = retarget(on_dp, &dp, dp);
+    CHECK_EQ(same.output, std::string("DP-1"));
+    CHECK_EQ(same.x, 120);
+    CHECK_EQ(same.y, 340);
+
+    // DP -> HDMI keeps the offset (120,340) and re-origins it, so the panel
+    // stays visible rather than sitting at absolute 120,340 - which on a
+    // monitor starting at 2560,360 would be off the left edge.
+    const PanelPlacement to_hdmi = retarget(on_dp, &dp, hdmi);
+    CHECK_EQ(to_hdmi.output, std::string("HDMI-A-1"));
+    CHECK_EQ(to_hdmi.x, 2680);
+    CHECK_EQ(to_hdmi.y, 700);
+    CHECK(monitor_for_point(m, to_hdmi.x, to_hdmi.y) == &hdmi);
+
+    // HDMI -> DP, the direction that used to produce a 4100 margin on a
+    // 2560-wide output and vanish the panel.
+    PanelPlacement on_hdmi;
+    on_hdmi.output = "HDMI-A-1";
+    on_hdmi.x = 4100;
+    on_hdmi.y = 730;
+    const PanelPlacement to_dp = retarget(on_hdmi, &hdmi, dp);
+    CHECK_EQ(to_dp.output, std::string("DP-1"));
+    CHECK_EQ(to_dp.x, 1540);
+    CHECK_EQ(to_dp.y, 370);
+    CHECK(monitor_for_point(m, to_dp.x, to_dp.y) == &dp);
+
+    // A position far outside the current monitor is clamped into the target.
+    PanelPlacement stray;
+    stray.output = "DP-1";
+    stray.x = 5000;
+    stray.y = 5000;
+    const PanelPlacement clamped = retarget(stray, &dp, hdmi);
+    CHECK_EQ(clamped.x, 4479);   // last pixel inside HDMI-A-1
+    CHECK_EQ(clamped.y, 1439);
+    CHECK(monitor_for_point(m, clamped.x, clamped.y) == &hdmi);
+
+    // Unknown current monitor: fall back to the target's top-left.
+    const PanelPlacement origin = retarget(on_dp, nullptr, hdmi);
+    CHECK_EQ(origin.x, 2560);
+    CHECK_EQ(origin.y, 360);
+}
+
 static void test_panel_placement_round_trip(const fs::path& config_file) {
     auto& cfg = ConfigManager::instance();
 
@@ -724,6 +776,7 @@ int main() {
     RUN(test_relative_desktop_conversion());
     RUN(test_resolve_output_point());
     RUN(test_import_placement());
+    RUN(test_retarget());
 
     std::printf("\nConfigManager:\n");
     RUN(test_hardware_prefs_round_trip(config_file));

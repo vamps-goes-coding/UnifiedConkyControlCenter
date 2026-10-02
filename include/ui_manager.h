@@ -96,6 +96,11 @@ public:
     
     // Gap adjustment tab functionality
     static QWidget* create_gap_tab(QWidget* parent);
+    // The two sub-tabs beneath the shared panel selector. Keeping the
+    // selector above them means one choice applies to both, with no state to
+    // keep in sync when the user switches.
+    static QWidget* create_gaps_sub_tab(QWidget* parent, QComboBox* panel_combo);
+    static QWidget* create_placement_sub_tab(QWidget* parent, QComboBox* panel_combo);
     static void refresh_panels(QComboBox* panel_combo);
     static void load_gap_values(QSpinBox* gap_x_spin, QSpinBox* gap_y_spin, const std::string& panel_name);
     static void apply_gap_changes(const std::string& panel_name, int gap_x, int gap_y);

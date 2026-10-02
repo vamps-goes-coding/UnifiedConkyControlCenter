@@ -148,3 +148,33 @@ PanelPlacement import_placement(int gap_x, int gap_y,
     p.y = desktop.second;
     return p;
 }
+
+PanelPlacement retarget(const PanelPlacement& placement,
+                        const MonitorRect* current,
+                        const MonitorRect& target) {
+    PanelPlacement out = placement;
+    out.output = target.name;
+
+    // Offset within the monitor it is on now - absolute coordinates are
+    // meaningless against a different origin.
+    int rel_x = 0;
+    int rel_y = 0;
+    if (current != nullptr) {
+        const auto rel = to_relative(*current, placement.x, placement.y);
+        rel_x = rel.first;
+        rel_y = rel.second;
+    }
+
+    // Clamp so the panel is on screen whatever the two monitors' sizes.
+    // Only meaningful for Wayland: X11 ignores the output and these become
+    // plain desktop coordinates, where the caller's position still stands -
+    // but a coordinate pair that leaves the chosen monitor is equally
+    // invisible there, so clamping is right for both servers.
+    rel_x = std::clamp(rel_x, 0, std::max(0, target.w - 1));
+    rel_y = std::clamp(rel_y, 0, std::max(0, target.h - 1));
+
+    const auto desktop = to_desktop(target, rel_x, rel_y);
+    out.x = desktop.first;
+    out.y = desktop.second;
+    return out;
+}

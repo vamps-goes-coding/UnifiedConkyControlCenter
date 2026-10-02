@@ -98,6 +98,7 @@ set(SOURCES
     src/screens.cpp
     src/placement.cpp
     src/placement_io.cpp
+    src/monitor_map_widget.cpp
     src/first_run_setup.cpp
     src/conky_syntax_highlighter.cpp
     src/in_app_editor.cpp
@@ -114,6 +115,9 @@ set(SOURCES
     src/hardware_detector.cpp
     src/hardware_detector.h
 
+    # Q_OBJECT headers have to be listed here explicitly: AUTOMOC only mocs
+    # headers it is told about, and a header in include/ with no same-named
+    # entry silently produces undefined vtable/signal references at link time.
     include/first_run_setup.h
     include/conky_syntax_highlighter.h
     include/in_app_editor.h
@@ -123,6 +127,7 @@ set(SOURCES
     include/preferences_dialog.h
     include/system_detector.h
     include/setup_wizard.h
+    include/monitor_map_widget.h
 )
 
 # 4. Create Executable 

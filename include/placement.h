@@ -123,3 +123,16 @@ PanelPlacement import_placement(int gap_x, int gap_y,
                                 bool wayland,
                                 const std::vector<MonitorRect>& monitors,
                                 const std::string& fallback_output = "");
+
+// Move a placement onto `target` while keeping its offset inside `current`
+// (the monitor it sits on now), clamped so it is guaranteed to land within
+// the new one. `current` may be nullptr, which places it at the target's
+// top-left.
+//
+// Selecting an output has to carry the panel with it. Layer-shell margins are
+// measured inside a single output, so a desktop position left outside the
+// chosen output - 4100 on a 2560-wide monitor, say - would push the surface
+// off screen entirely and the panel would simply vanish.
+PanelPlacement retarget(const PanelPlacement& placement,
+                        const MonitorRect* current,
+                        const MonitorRect& target);
