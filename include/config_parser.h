@@ -18,6 +18,18 @@ public:
     static int get_gap_x(const fs::path& config_path);
     static int get_gap_y(const fs::path& config_path);
     static bool set_gap_values(const fs::path& config_path, int gap_x, int gap_y);
+
+    // Wayland output selection. Optional key, so absence of the KEY yields ""
+    // rather than throwing (unlike get_gap_x, whose callers require the
+    // value); absence of the FILE still throws like every other getter here.
+    static std::string get_wayland_output(const fs::path& config_path);
+    // Writes the key, or removes it outright when `output` is empty. Returns
+    // false only when the file has no conky.config table to edit.
+    static bool set_wayland_output(const fs::path& config_path, const std::string& output);
+
+    // Alignment as conky spells it ("top_left", "top_right", ...). Returns ""
+    // when omitted; conky's own default is "top_left".
+    static std::string get_alignment(const fs::path& config_path);
     
     // Color extraction from Lua themes
     static std::vector<std::string> extract_colors_from_theme(const fs::path& theme_path);
@@ -48,6 +60,9 @@ private:
     // Pre-compiled regex patterns (equivalent to Python script)
     static const std::regex RE_GAP_X;
     static const std::regex RE_GAP_Y;
+    static const std::regex RE_WAYLAND_OUTPUT;      // captures the value
+    static const std::regex RE_WAYLAND_OUTPUT_LINE; // the whole key line
+    static const std::regex RE_ALIGNMENT;
     static const std::regex RE_COLOR;
     static const std::regex RE_META_NAME;
     static const std::regex RE_META_CATEGORY;

@@ -20,6 +20,9 @@ std::string_view trim_view(std::string_view str) {
 // Note: std::regex requires std::string, not std::string_view
 const std::string GAP_X_PATTERN = "gap_x\\s*=\\s*(-?\\d+)";
 const std::string GAP_Y_PATTERN = "gap_y\\s*=\\s*(-?\\d+)";
+const std::string WAYLAND_OUTPUT_PATTERN = "wayland_output\\s*=\\s*'([^']*)'";
+const std::string WAYLAND_OUTPUT_LINE_PATTERN = "^\\s*wayland_output\\s*=";
+const std::string ALIGNMENT_PATTERN = "alignment\\s*=\\s*'([^']*)'";
 const std::string COLOR_PATTERN = "color(\\d+)\\s*=\\s*'([^']+)'";
 const std::string META_NAME_PATTERN = "name\\s*=\\s*\"([^\"]+)\"";
 const std::string META_CATEGORY_PATTERN = "category\\s*=\\s*\"([^\"]+)\"";
@@ -27,6 +30,9 @@ const std::string META_CATEGORY_PATTERN = "category\\s*=\\s*\"([^\"]+)\"";
 // Static member definitions for pre-compiled regex patterns
 const std::regex ConfigParser::RE_GAP_X(GAP_X_PATTERN);
 const std::regex ConfigParser::RE_GAP_Y(GAP_Y_PATTERN);
+const std::regex ConfigParser::RE_WAYLAND_OUTPUT(WAYLAND_OUTPUT_PATTERN);
+const std::regex ConfigParser::RE_WAYLAND_OUTPUT_LINE(WAYLAND_OUTPUT_LINE_PATTERN);
+const std::regex ConfigParser::RE_ALIGNMENT(ALIGNMENT_PATTERN);
 const std::regex ConfigParser::RE_COLOR(COLOR_PATTERN);
 const std::regex ConfigParser::RE_META_NAME(META_NAME_PATTERN);
 const std::regex ConfigParser::RE_META_CATEGORY(META_CATEGORY_PATTERN);
@@ -186,6 +192,124 @@ bool ConfigParser::set_gap_values(const fs::path& config_path, int gap_x, int ga
     }
     
     out_file << replaced_y;
+    out_file.close();
+    return true;
+}
+
+namespace {
+// First line whose capture group 1 is the setting's value. Throws only when
+// the file itself is unusable: a file with no such key legitimately yields "".
+std::string read_string_setting(const fs::path& config_path,
+                                const std::regex& re) {
+    if (!fs::exists(config_path)) {
+        throw std::runtime_error("Configuration file not found: " + config_path.string());
+    }
+    std::ifstream file(config_path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open configuration file: " + config_path.string());
+    }
+    std::string line;
+    while (std::getline(file, line)) {
+        std::smatch match;
+        if (std::regex_search(line, match, re)) {
+            return match[1].str();
+        }
+    }
+    return std::string();
+}
+}  // namespace
+
+std::string ConfigParser::get_wayland_output(const fs::path& config_path) {
+    return read_string_setting(config_path, RE_WAYLAND_OUTPUT);
+}
+
+std::string ConfigParser::get_alignment(const fs::path& config_path) {
+    return read_string_setting(config_path, RE_ALIGNMENT);
+}
+
+bool ConfigParser::set_wayland_output(const fs::path& config_path,
+                                      const std::string& output) {
+    if (!fs::exists(config_path)) {
+        throw std::runtime_error("Configuration file not found: " + config_path.string());
+    }
+    std::ifstream file(config_path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open configuration file: " + config_path.string());
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+    const std::string content = buffer.str();
+    const bool trailing_newline = !content.empty() && content.back() == '\n';
+
+    std::vector<std::string> lines;
+    {
+        std::istringstream stream(content);
+        std::string line;
+        while (std::getline(stream, line)) lines.push_back(line);
+    }
+
+    // Every line carrying the key. More than one can exist if a config was
+    // hand-edited; extras are collapsed rather than left to shadow us.
+    std::vector<std::size_t> key_lines;
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        if (std::regex_search(lines[i], RE_WAYLAND_OUTPUT_LINE)) key_lines.push_back(i);
+    }
+
+    if (output.empty()) {
+        if (key_lines.empty()) return true;  // already absent
+        for (auto it = key_lines.rbegin(); it != key_lines.rend(); ++it) {
+            lines.erase(lines.begin() + static_cast<std::ptrdiff_t>(*it));
+        }
+    } else if (!key_lines.empty()) {
+        // Replace the first occurrence in place, preserving its indentation
+        // and trailing comma so the surrounding Lua table stays valid.
+        std::string& target = lines[key_lines.front()];
+        const std::size_t indent = target.find_first_not_of(" \t");
+        const std::string lead =
+            indent == std::string::npos ? "    " : target.substr(0, indent);
+        const bool comma = target.find(',') != std::string::npos;
+        target = lead + "wayland_output = '" + output + "'" + (comma ? "," : "");
+
+        for (std::size_t i = key_lines.size(); i-- > 1;) {
+            lines.erase(lines.begin() + static_cast<std::ptrdiff_t>(key_lines[i]));
+        }
+    } else {
+        // Key absent: insert at the top of the conky.config table so it sits
+        // with the other settings instead of after conky.text.
+        static const std::regex re_table_start("conky\\.config\\s*=\\s*\\{");
+        std::size_t insert_at = 0;
+        bool found = false;
+        for (std::size_t i = 0; i < lines.size(); ++i) {
+            if (std::regex_search(lines[i], re_table_start)) {
+                insert_at = i + 1;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            std::cerr << "ERROR: no conky.config table found in: " << config_path << std::endl;
+            return false;
+        }
+        lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insert_at),
+                     "    wayland_output = '" + output + "',");
+    }
+
+    std::string rebuilt;
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        if (i) rebuilt += '\n';
+        rebuilt += lines[i];
+    }
+    if (trailing_newline && !lines.empty()) rebuilt += '\n';
+
+    if (rebuilt == content) return true;  // already exactly right
+
+    std::ofstream out_file(config_path);
+    if (!out_file.is_open()) {
+        throw std::runtime_error("Failed to write to configuration file: " + config_path.string());
+    }
+    out_file << rebuilt;
     out_file.close();
     return true;
 }

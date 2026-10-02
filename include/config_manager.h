@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 
+#include "placement.h"
+
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
@@ -206,6 +208,16 @@ public:
     const std::map<std::string, std::string>& get_hardware_prefs() const { return hardware_prefs_; }
     std::string get_hardware_pref(const std::string& key, const std::string& default_value = "") const;
     void set_hardware_pref(const std::string& key, const std::string& value);
+
+    // Per-panel placement (Placement tab). Coordinates are desktop-space
+    // whatever the display server does with them; see placement.h.
+    const std::map<std::string, PanelPlacement>& get_panel_placements() const { return panel_placement_; }
+    bool has_placement(const std::string& panel) const;
+    // Default-constructed entry when the panel has none, so callers can use
+    // the result without checking first.
+    PanelPlacement get_placement(const std::string& panel) const;
+    void set_placement(const std::string& panel, const PanelPlacement& placement);
+    void clear_placement(const std::string& panel);
     
 private:
     ConfigManager() = default;
@@ -221,6 +233,7 @@ private:
     std::vector<std::string> app_themes_;
     std::vector<EditorInfo> editors_;
     std::map<std::string, std::string> hardware_prefs_;
+    std::map<std::string, PanelPlacement> panel_placement_;
     
     // Helper methods
     fs::path find_config_file() const;

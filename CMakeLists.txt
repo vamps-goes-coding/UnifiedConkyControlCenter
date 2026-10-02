@@ -96,6 +96,7 @@ set(SOURCES
     src/ui_manager.cpp
     src/utils.cpp
     src/screens.cpp
+    src/placement.cpp
     src/first_run_setup.cpp
     src/conky_syntax_highlighter.cpp
     src/in_app_editor.cpp
@@ -211,6 +212,7 @@ if(UCCC_BUILD_TESTS)
         src/config_parser.cpp
         src/config_manager.cpp
         src/display_server.cpp
+        src/placement.cpp
         src/utils.cpp
         src/logger.cpp
     )

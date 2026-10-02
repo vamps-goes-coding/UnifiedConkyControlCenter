@@ -10,6 +10,7 @@
 
 #include "config_parser.h"
 #include "config_manager.h"
+#include "placement.h"
 #include "utils.h"
 #include "logger.h"
 
@@ -421,6 +422,281 @@ static void test_discovery_on_missing_directory(const fs::path& dir) {
 
 // ═════════════════════════════════════════════════════════════════════════════
 
+static void test_wayland_output_round_trip(const fs::path& dir) {
+    const fs::path file = dir / "wayland-output.conf";
+    write_text(file,
+               "conky.config = {\n"
+               "    gap_x = 40,\n"
+               "    alignment = 'top_left',\n"
+               "};\n");
+
+    // Optional key: absent reads as "", it does not throw.
+    CHECK_EQ(ConfigParser::get_wayland_output(file), std::string(""));
+
+    // Inserted at the top of the conky.config table, alongside the settings.
+    CHECK(ConfigParser::set_wayland_output(file, "HDMI-A-1"));
+    CHECK_EQ(ConfigParser::get_wayland_output(file), std::string("HDMI-A-1"));
+    CHECK(read_text(file).find("wayland_output = 'HDMI-A-1',") != std::string::npos);
+
+    // Replaced in place on a second write - not appended as a duplicate.
+    CHECK(ConfigParser::set_wayland_output(file, "DP-1"));
+    CHECK_EQ(ConfigParser::get_wayland_output(file), std::string("DP-1"));
+    CHECK(read_text(file).find("HDMI-A-1") == std::string::npos);
+
+    // Unrelated keys and the table itself survive every rewrite.
+    CHECK(read_text(file).find("gap_x = 40") != std::string::npos);
+    CHECK(read_text(file).find("alignment = 'top_left'") != std::string::npos);
+    CHECK(read_text(file).find("conky.config") != std::string::npos);
+
+    // An empty output removes the key outright rather than writing "".
+    CHECK(ConfigParser::set_wayland_output(file, ""));
+    CHECK_EQ(ConfigParser::get_wayland_output(file), std::string(""));
+    CHECK(read_text(file).find("wayland_output") == std::string::npos);
+
+    // Re-clearing an already-absent key is a success, not an error.
+    CHECK(ConfigParser::set_wayland_output(file, ""));
+
+    // A file with no conky.config table cannot be edited safely.
+    const fs::path tableless = dir / "tableless.conf";
+    write_text(tableless, "just some prose\n");
+    CHECK(!ConfigParser::set_wayland_output(tableless, "DP-1"));
+
+    // A missing file still throws, like every other getter here.
+    bool threw = false;
+    try {
+        ConfigParser::get_wayland_output(dir / "not-here.conf");
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    CHECK(threw);
+}
+
+static void test_alignment_read(const fs::path& dir) {
+    const fs::path file = dir / "alignment.conf";
+    write_text(file,
+               "conky.config = {\n"
+               "    alignment = 'bottom_right',\n"
+               "};\n");
+    CHECK_EQ(ConfigParser::get_alignment(file), std::string("bottom_right"));
+
+    // Absent reports "" so a caller can distinguish "not specified" from an
+    // explicit top_left (conky's own default).
+    const fs::path bare = dir / "alignment-absent.conf";
+    write_text(bare, "conky.config = {\n    gap_x = 1,\n};\n");
+    CHECK_EQ(ConfigParser::get_alignment(bare), std::string(""));
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Placement
+// ═════════════════════════════════════════════════════════════════════════════
+
+// A layout matching a real two-output desktop: DP-1 primary at the origin and
+// HDMI-A-1 offset right and down, so their x ranges abut at x = 2560 and the
+// y ranges overlap. That shape is exactly what made naive row-layout code
+// wrong for this machine.
+static std::vector<MonitorRect> demo_layout() {
+    return {
+        MonitorRect{"DP-1", 0, 0, 2560, 1440, true},
+        MonitorRect{"HDMI-A-1", 2560, 360, 1920, 1080, false},
+    };
+}
+
+static void test_monitor_lookup() {
+    const auto m = demo_layout();
+
+    CHECK_EQ(monitor_for_point(m, 0, 0)->name, std::string("DP-1"));
+    CHECK_EQ(monitor_for_point(m, 2559, 1439)->name, std::string("DP-1"));
+    // HDMI-A-1's top-left corner belongs to it alone: DP-1 stops at x = 2560.
+    CHECK_EQ(monitor_for_point(m, 2560, 360)->name, std::string("HDMI-A-1"));
+    CHECK_EQ(monitor_for_point(m, 4479, 1439)->name, std::string("HDMI-A-1"));
+
+    // Outside every monitor...
+    CHECK(monitor_for_point(m, 4480, 1439) == nullptr);
+    CHECK(monitor_for_point(m, -10, -10) == nullptr);
+
+    // ... resolved to the nearest by centre distance.
+    CHECK_EQ(nearest_monitor(m, 4480, 1439)->name, std::string("HDMI-A-1"));
+    CHECK_EQ(nearest_monitor(m, -10, -10)->name, std::string("DP-1"));
+
+    CHECK_EQ(monitor_by_name(m, "HDMI-A-1")->name, std::string("HDMI-A-1"));
+    CHECK(monitor_by_name(m, "") == nullptr);
+    CHECK(monitor_by_name(m, "DP-99") == nullptr);
+
+    CHECK(primary_monitor(m) != nullptr);
+    CHECK_EQ(primary_monitor(m)->name, std::string("DP-1"));
+
+    // An empty layout must be safe at every entry point, not crash.
+    const std::vector<MonitorRect> none;
+    CHECK(monitor_for_point(none, 10, 10) == nullptr);
+    CHECK(nearest_monitor(none, 10, 10) == nullptr);
+    CHECK(monitor_by_name(none, "DP-1") == nullptr);
+    CHECK(primary_monitor(none) == nullptr);
+}
+
+static void test_relative_desktop_conversion() {
+    const auto m = demo_layout();
+    const MonitorRect& hdmi = *monitor_by_name(m, "HDMI-A-1");
+
+    // Desktop -> output-relative against HDMI-A-1's origin of (2560, 360).
+    const auto rel = to_relative(hdmi, 4100, 730);
+    CHECK_EQ(rel.first, 1540);
+    CHECK_EQ(rel.second, 370);
+
+    const auto desk = to_desktop(hdmi, rel.first, rel.second);
+    CHECK_EQ(desk.first, 4100);
+    CHECK_EQ(desk.second, 730);
+
+    // Layer-shell accepts negative margins, so a point left of the monitor
+    // must survive the round trip instead of clamping to zero. This is the
+    // behaviour the old std::max(0, ...) conversion destroyed.
+    const auto neg = to_relative(hdmi, 2000, 360);
+    CHECK_EQ(neg.first, -560);
+    CHECK_EQ(neg.second, 0);
+    const auto neg_back = to_desktop(hdmi, neg.first, neg.second);
+    CHECK_EQ(neg_back.first, 2000);
+
+    const DesktopBox box = desktop_bounds(m);
+    CHECK_EQ(box.x, 0);
+    CHECK_EQ(box.y, 0);
+    CHECK_EQ(box.w, 4480);
+    CHECK_EQ(box.h, 1440);
+
+    const DesktopBox empty = desktop_bounds({});
+    CHECK_EQ(empty.w, 0);
+    CHECK_EQ(empty.h, 0);
+}
+
+static void test_resolve_output_point() {
+    const auto m = demo_layout();
+
+    const ResolvedPoint on_hdmi = resolve_output_point(m, 4100, 730);
+    CHECK(on_hdmi.monitor != nullptr);
+    CHECK_EQ(on_hdmi.monitor->name, std::string("HDMI-A-1"));
+    CHECK_EQ(on_hdmi.rel_x, 1540);
+    CHECK_EQ(on_hdmi.rel_y, 370);
+
+    const ResolvedPoint on_dp = resolve_output_point(m, 100, 100);
+    CHECK(on_dp.monitor != nullptr);
+    CHECK_EQ(on_dp.monitor->name, std::string("DP-1"));
+    CHECK_EQ(on_dp.rel_x, 100);
+    CHECK_EQ(on_dp.rel_y, 100);
+
+    // A drop outside every monitor still resolves to the nearest one, so the
+    // map can never produce a panel with no output assigned.
+    const ResolvedPoint past_edge = resolve_output_point(m, 4480, 1439);
+    CHECK(past_edge.monitor != nullptr);
+    CHECK_EQ(past_edge.monitor->name, std::string("HDMI-A-1"));
+
+    const ResolvedPoint no_monitors = resolve_output_point({}, 10, 10);
+    CHECK(no_monitors.monitor == nullptr);
+    CHECK_EQ(no_monitors.rel_x, 0);
+}
+
+static void test_import_placement() {
+    const auto m = demo_layout();
+
+    // X11 positions absolutely: the gaps are desktop coordinates already.
+    const PanelPlacement x11 = import_placement(100, 200, "DP-1", false, m);
+    CHECK_EQ(x11.x, 100);
+    CHECK_EQ(x11.y, 200);
+    CHECK_EQ(x11.output, std::string("DP-1"));
+
+    // Wayland: margins inside HDMI-A-1 lift back to desktop coordinates.
+    const PanelPlacement wl = import_placement(1540, 370, "HDMI-A-1", true, m);
+    CHECK_EQ(wl.x, 4100);
+    CHECK_EQ(wl.y, 730);
+    CHECK_EQ(wl.output, std::string("HDMI-A-1"));
+
+    // No output in the conf: the ambient one decides which origin applies.
+    const PanelPlacement ambient = import_placement(100, 100, "", true, m, "DP-1");
+    CHECK_EQ(ambient.x, 100);
+    CHECK_EQ(ambient.y, 100);
+    CHECK_EQ(ambient.output, std::string("DP-1"));
+
+    // Nothing named anywhere: fall back to the primary monitor.
+    const PanelPlacement primary = import_placement(10, 20, "", true, m);
+    CHECK_EQ(primary.output, std::string("DP-1"));
+    CHECK_EQ(primary.x, 10);
+    CHECK_EQ(primary.y, 20);
+
+    // The conf names a monitor absent from the layout (unplugged, renamed):
+    // resolve to one that exists instead of storing a phantom reference.
+    const PanelPlacement phantom = import_placement(10, 20, "DP-99", true, m);
+    CHECK_EQ(phantom.output, std::string("DP-1"));
+
+    // A phantom conf output gives the ambient one the next say, ahead of
+    // dropping to the primary - and the chosen origin does the conversion.
+    const PanelPlacement repaired =
+        import_placement(10, 20, "DP-99", true, m, "HDMI-A-1");
+    CHECK_EQ(repaired.output, std::string("HDMI-A-1"));
+    CHECK_EQ(repaired.x, 2570);
+    CHECK_EQ(repaired.y, 380);
+
+    // No layout known at all: take the gaps at face value, invent nothing.
+    const std::vector<MonitorRect> none;
+    const PanelPlacement blind = import_placement(70, 80, "HDMI-A-1", true, none);
+    CHECK_EQ(blind.x, 70);
+    CHECK_EQ(blind.y, 80);
+    CHECK_EQ(blind.output, std::string("HDMI-A-1"));
+}
+
+static void test_panel_placement_round_trip(const fs::path& config_file) {
+    auto& cfg = ConfigManager::instance();
+
+    reset_config();
+    CHECK(cfg.get_panel_placements().empty());
+    CHECK(!cfg.has_placement("timezones"));
+    // A missing entry yields a default-constructed placement, never a throw.
+    CHECK_EQ(cfg.get_placement("timezones").x, 0);
+    CHECK(cfg.get_placement("timezones").launch_env);
+
+    PanelPlacement p;
+    p.output = "HDMI-A-1";
+    p.x = 4100;
+    p.y = 730;
+    p.launch_env = false;  // must survive as false, not revert to the default
+    cfg.set_placement("timezones", p);
+    CHECK(cfg.has_placement("timezones"));
+
+    PanelPlacement other;
+    other.output = "DP-1";
+    other.x = 120;
+    other.y = 340;
+    cfg.set_placement("calendar", other);
+
+    CHECK(cfg.save_config());
+
+    // Simulate a restart: blank slate, then read back from disk.
+    reset_config();
+    CHECK(cfg.get_panel_placements().empty());
+    CHECK(cfg.load_config(config_file));
+    CHECK_EQ(cfg.get_panel_placements().size(), std::size_t{2});
+
+    const PanelPlacement back = cfg.get_placement("timezones");
+    CHECK_EQ(back.output, std::string("HDMI-A-1"));
+    CHECK_EQ(back.x, 4100);
+    CHECK_EQ(back.y, 730);
+    CHECK(!back.launch_env);
+
+    const PanelPlacement cal = cfg.get_placement("calendar");
+    CHECK_EQ(cal.output, std::string("DP-1"));
+    CHECK_EQ(cal.x, 120);
+    CHECK_EQ(cal.y, 340);
+    CHECK(cal.launch_env);
+
+    // Removing one entry leaves the other alone.
+    cfg.clear_placement("timezones");
+    CHECK(!cfg.has_placement("timezones"));
+    CHECK(cfg.save_config());
+    reset_config();
+    CHECK(cfg.load_config(config_file));
+    CHECK(!cfg.has_placement("timezones"));
+    CHECK(cfg.has_placement("calendar"));
+
+    cfg.clear_placement("calendar");
+    reset_config();
+}
+
 int main() {
     TempDir root("root");
     const fs::path config_file = root.path / "app_config.json";
@@ -440,11 +716,20 @@ int main() {
     RUN(test_csv_round_trip(root.path / "parser"));
     RUN(test_hex_color_validation());
     RUN(test_conky_config_key_value_parsing(root.path / "parser"));
+    RUN(test_wayland_output_round_trip(root.path / "parser"));
+    RUN(test_alignment_read(root.path / "parser"));
+
+    std::printf("\nPlacement:\n");
+    RUN(test_monitor_lookup());
+    RUN(test_relative_desktop_conversion());
+    RUN(test_resolve_output_point());
+    RUN(test_import_placement());
 
     std::printf("\nConfigManager:\n");
     RUN(test_hardware_prefs_round_trip(config_file));
     RUN(test_themes_override_persists_only_when_custom(config_file));
     RUN(test_defaults_reset_clears_stale_state(config_file));
+    RUN(test_panel_placement_round_trip(config_file));
 
     std::printf("\nDisplay server:\n");
     RUN(test_display_server_prefix_resolution(config_file));

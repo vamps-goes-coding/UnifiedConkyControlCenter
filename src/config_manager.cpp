@@ -121,6 +121,23 @@ bool ConfigManager::load_config(const fs::path& config_path) {
             }
         }
 
+        // Parse panel placement (Placement tab)
+        if (config.contains("panel_placement") && config["panel_placement"].is_object()) {
+            panel_placement_.clear();
+            const auto& placement = config["panel_placement"];
+            if (placement.contains("panels") && placement["panels"].is_object()) {
+                for (const auto& [panel, value] : placement["panels"].items()) {
+                    if (!value.is_object()) continue;
+                    PanelPlacement p;
+                    p.output = value.value("output", p.output);
+                    p.x = value.value("x", p.x);
+                    p.y = value.value("y", p.y);
+                    p.launch_env = value.value("launch_env", p.launch_env);
+                    panel_placement_[panel] = p;
+                }
+            }
+        }
+
         // Parse app themes
         if (config.contains("app_themes") && config["app_themes"].is_array()) {
             app_themes_ = config["app_themes"].get<std::vector<std::string>>();
@@ -357,6 +374,7 @@ void ConfigManager::set_defaults() {
     ui_config_ = UIConfig{};
     themes_config_ = ThemesConfig{};
     hardware_prefs_.clear();
+    panel_placement_.clear();
 
     app_themes_ = {"Default Light", "Dark Charcoal", "Dracula", "Nord", "Solarized Light", "Oceanic"};
     
@@ -434,6 +452,24 @@ void ConfigManager::set_hardware_pref(const std::string& key, const std::string&
     } else {
         hardware_prefs_[key] = value;
     }
+}
+
+bool ConfigManager::has_placement(const std::string& panel) const {
+    return panel_placement_.count(panel) > 0;
+}
+
+PanelPlacement ConfigManager::get_placement(const std::string& panel) const {
+    auto it = panel_placement_.find(panel);
+    return it != panel_placement_.end() ? it->second : PanelPlacement{};
+}
+
+void ConfigManager::set_placement(const std::string& panel,
+                                  const PanelPlacement& placement) {
+    panel_placement_[panel] = placement;
+}
+
+void ConfigManager::clear_placement(const std::string& panel) {
+    panel_placement_.erase(panel);
 }
 
 bool ConfigManager::save_display_server_selection() {
@@ -553,6 +589,20 @@ bool ConfigManager::save_config() {
                 hw[key] = value;
             }
             config["hardware"] = hw;
+        }
+
+        // Per-panel placement (Placement tab)
+        if (!panel_placement_.empty()) {
+            json panels = json::object();
+            for (const auto& [panel, p] : panel_placement_) {
+                panels[panel] = {
+                    {"output", p.output},
+                    {"x", p.x},
+                    {"y", p.y},
+                    {"launch_env", p.launch_env}
+                };
+            }
+            config["panel_placement"] = {{"panels", panels}};
         }
         
         // UI config
